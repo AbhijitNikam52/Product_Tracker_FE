@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Compare from './pages/Compare';
 import SearchProduct from './pages/SearchProduct';
 import Home from './pages/Home';
+import Profile from './pages/Profile';
 
 // Custom Route Guard for protecting dashboard
 const PrivateRoute = ({ children }) => {
@@ -78,6 +79,14 @@ const App = () => {
           element={
             <PrivateRoute>
               <Compare />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
             </PrivateRoute>
           }
         />

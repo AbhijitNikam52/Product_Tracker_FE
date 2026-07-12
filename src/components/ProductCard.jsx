@@ -150,7 +150,7 @@ const ProductCard = ({ item }) => {
         ) : (
           // Fallback image gradient
           <div className="w-full h-full bg-gradient-to-br from-ag-purple/10 to-ag-violet/5 flex flex-col items-center justify-center">
-            <span className="text-ag-purple text-4xl mb-1">⬇</span>
+            <span className="text-ag-purple text-4xl mb-1">🏷️</span>
             <span className="text-[10px] text-ag-muted font-semibold tracking-widest uppercase">
               No Image Loaded
             </span>

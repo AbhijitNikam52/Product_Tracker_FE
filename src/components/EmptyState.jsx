@@ -98,7 +98,7 @@ const EmptyState = () => {
         Nothing tracked yet.
       </h2>
       <p className="text-sm text-ag-muted leading-relaxed mb-8 max-w-sm">
-        Add your first product URL from Amazon, Flipkart, Myntra, or Ajio, and let Antigravity fight the pull of high prices.
+        Add your first product URL from Amazon, Flipkart, Myntra, or Ajio, and let PriceDekho help you track and save on prices.
       </p>
 
       {/* Button CTA */}

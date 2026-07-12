@@ -52,13 +52,13 @@ const Login = () => {
         {/* Logo and Branding Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center space-x-2 select-none mb-3">
-            <span className="text-ag-purple text-3xl font-black">⬇</span>
+            <span className="text-ag-purple text-3xl font-black">🏷️</span>
             <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-ag-purple to-ag-violet bg-clip-text text-transparent">
-              Antigravity
+              PriceDekho
             </span>
           </div>
           <p className="text-xs text-ag-muted font-semibold uppercase tracking-wider">
-            Fight the pull of high prices
+            Track and save on prices in real-time
           </p>
         </div>
 

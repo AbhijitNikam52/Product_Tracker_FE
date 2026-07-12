@@ -18,7 +18,7 @@ const STORES_CONFIG = {
 };
 
 const Home = () => {
-  const { savedProducts, removeSavedProduct, cart, addToCart, openAddModal } = useStore();
+  const { savedProducts, removeSavedProduct, cart, addToCart, openAddModal, showConfirm } = useStore();
 
   // Filters State
   const [searchTerm, setSearchTerm] = useState('');
@@ -245,7 +245,13 @@ const Home = () => {
                 >
                   {/* Remove Pin Ribbon/Icon */}
                   <button
-                    onClick={() => removeSavedProduct(prod.id)}
+                    onClick={() => {
+                      showConfirm(
+                        'Remove Saved Product',
+                        `Are you sure you want to remove "${prod.title}" from your saved list?`,
+                        () => removeSavedProduct(prod.id)
+                      );
+                    }}
                     className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-ag-black/80 hover:bg-ag-red/20 border border-ag-border hover:border-ag-red flex items-center justify-center text-ag-muted hover:text-ag-red transition-all cursor-pointer shadow-md focus:outline-none"
                     title="Remove Pin"
                   >

@@ -12,7 +12,8 @@ const Sidebar = () => {
     { name: 'Home', path: '/home', icon: '🏠' },
     { name: 'Product Search', path: '/search', icon: '🔍' },
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
-    { name: 'Compare Prices', path: '/compare', icon: '⚖️' }
+    { name: 'Compare Prices', path: '/compare', icon: '⚖️' },
+    { name: 'My Profile', path: '/profile', icon: '👤' }
   ];
 
   return (
@@ -29,9 +30,9 @@ const Sidebar = () => {
         {/* Close Button Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-2 select-none">
-            <span className="text-ag-purple text-2xl font-black">⬇</span>
+            <span className="text-ag-purple text-2xl font-black">🏷️</span>
             <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-ag-purple to-ag-violet bg-clip-text text-transparent">
-              Antigravity Nav
+              PriceDekho Nav
             </span>
           </div>
           <button 
@@ -66,7 +67,7 @@ const Sidebar = () => {
 
         {/* Footer info */}
         <div className="border-t border-ag-border/50 pt-4 text-[10px] text-ag-muted font-bold tracking-wider uppercase text-center">
-          © 2026 Antigravity v1.2
+          © 2026 PriceDekho v1.2
         </div>
 
       </div>
