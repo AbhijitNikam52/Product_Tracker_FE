@@ -11,6 +11,7 @@ import Compare from './pages/Compare';
 import SearchProduct from './pages/SearchProduct';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Custom Route Guard for protecting dashboard
 const PrivateRoute = ({ children }) => {
@@ -22,6 +23,14 @@ const PrivateRoute = ({ children }) => {
 const PublicRoute = ({ children }) => {
   const { user } = useStore();
   return user && user.token ? <Navigate to="/dashboard" replace /> : children;
+};
+
+// Route Guard to restrict access to admin users only
+const AdminRoute = ({ children }) => {
+  const { user } = useStore();
+  return user && user.token && user.role === 'admin' 
+    ? children 
+    : <Navigate to="/dashboard" replace />;
 };
 
 const App = () => {
@@ -88,6 +97,14 @@ const App = () => {
             <PrivateRoute>
               <Profile />
             </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
           }
         />
 

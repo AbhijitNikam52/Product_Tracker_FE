@@ -11,21 +11,38 @@ const getInitialUser = () => {
   }
 };
 
+// Helper to load scoped user cart from localStorage
+const getInitialCart = (userId) => {
+  if (!userId) return [];
+  try {
+    const stored = localStorage.getItem(`pricedekho_cart_${userId}`);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const initialUser = getInitialUser();
+
 const useStore = create((set, get) => ({
   // AUTH SLICE
-  user: getInitialUser(),
+  user: initialUser,
   login: (userData) => {
-    // userData contains { token, user: { userId, email, name, phone, emailNotifications } }
+    // userData contains { token, user: { userId, email, name, phone, emailNotifications, role } }
     const mappedUser = {
       userId: userData.user.userId,
       email: userData.user.email,
       name: userData.user.name || '',
       phone: userData.user.phone || '',
       emailNotifications: userData.user.emailNotifications !== false,
+      role: userData.user.role || 'user',
       token: userData.token
     };
     localStorage.setItem('pricedekho_user', JSON.stringify(mappedUser));
-    set({ user: mappedUser });
+    
+    // Scoped cart load on login
+    const userCart = getInitialCart(mappedUser.userId);
+    set({ user: mappedUser, cart: userCart });
   },
   updateUser: (fields) => {
     const currentUser = get().user;
@@ -37,7 +54,7 @@ const useStore = create((set, get) => ({
   },
   logout: () => {
     localStorage.removeItem('pricedekho_user');
-    set({ user: null, items: [], notifications: [], unreadCount: 0 });
+    set({ user: null, items: [], notifications: [], unreadCount: 0, cart: [] });
   },
 
   // ITEMS SLICE
@@ -105,56 +122,41 @@ const useStore = create((set, get) => ({
   })),
 
   // CART SLICE
-  cart: (() => {
-    try {
-      const stored = localStorage.getItem('pricedekho_cart');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
-    }
-  })(),
+  cart: initialUser ? getInitialCart(initialUser.userId) : [],
   addToCart: (item) => {
+    const user = get().user;
+    const userId = user ? user.userId : 'guest';
     const currentCart = get().cart;
     const exists = currentCart.some(i => i.productUrl === item.productUrl);
     if (!exists) {
       const updated = [...currentCart, { ...item, id: item.site + '_' + Date.now() }];
-      localStorage.setItem('pricedekho_cart', JSON.stringify(updated));
+      localStorage.setItem(`pricedekho_cart_${userId}`, JSON.stringify(updated));
       set({ cart: updated });
     }
   },
   removeFromCart: (id) => {
+    const user = get().user;
+    const userId = user ? user.userId : 'guest';
     const updated = get().cart.filter(i => i.id !== id);
-    localStorage.setItem('pricedekho_cart', JSON.stringify(updated));
+    localStorage.setItem(`pricedekho_cart_${userId}`, JSON.stringify(updated));
     set({ cart: updated });
   },
   clearCart: () => {
-    localStorage.setItem('pricedekho_cart', JSON.stringify([]));
+    const user = get().user;
+    const userId = user ? user.userId : 'guest';
+    localStorage.setItem(`pricedekho_cart_${userId}`, JSON.stringify([]));
     set({ cart: [] });
   },
 
   // SAVED PRODUCTS (HOME) SLICE
-  savedProducts: (() => {
-    try {
-      const stored = localStorage.getItem('pricedekho_saved_products');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
-    }
-  })(),
-  saveProduct: (product) => {
-    const currentSaved = get().savedProducts;
-    const exists = currentSaved.some(p => p.productUrl === product.productUrl);
-    if (!exists) {
-      const updated = [...currentSaved, { ...product, id: product.site + '_' + Date.now(), savedAt: new Date().toISOString() }];
-      localStorage.setItem('pricedekho_saved_products', JSON.stringify(updated));
-      set({ savedProducts: updated });
-    }
-  },
-  removeSavedProduct: (id) => {
-    const updated = get().savedProducts.filter(p => p.id !== id);
-    localStorage.setItem('pricedekho_saved_products', JSON.stringify(updated));
-    set({ savedProducts: updated });
-  }
+  savedProducts: [],
+  setSavedProducts: (arr) => set({ savedProducts: arr }),
+  saveProduct: (product) => set((state) => ({
+    savedProducts: [product, ...state.savedProducts]
+  })),
+  removeSavedProduct: (id) => set((state) => ({
+    savedProducts: state.savedProducts.filter(p => p._id !== id)
+  }))
 }));
 
 export default useStore;

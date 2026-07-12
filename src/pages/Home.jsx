@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
+import client from '../api/client';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import AlertBanner from '../components/AlertBanner';
 import AddItemModal from '../components/AddItemModal';
 import CustomPopup from '../components/CustomPopup';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const STORES_CONFIG = {
   amazon: { name: 'Amazon', bg: 'from-amber-500 to-yellow-600', text: 'text-white border-amber-600' },
@@ -18,7 +20,10 @@ const STORES_CONFIG = {
 };
 
 const Home = () => {
-  const { savedProducts, removeSavedProduct, cart, addToCart, openAddModal, showConfirm } = useStore();
+  const { savedProducts, setSavedProducts, removeSavedProduct, cart, addToCart, openAddModal, showConfirm, user } = useStore();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Filters State
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,16 +31,43 @@ const Home = () => {
   const [priceRange, setPriceRange] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
+  // Fetch initial saved products from DB
+  useEffect(() => {
+    const fetchSavedProducts = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await client.get('/api/saved-products');
+        setSavedProducts(res.data);
+      } catch (err) {
+        console.error('Error fetching saved products:', err);
+        setError('Failed to fetch saved products from the server.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSavedProducts();
+  }, [setSavedProducts]);
+
+  // Remove saved product API handler
+  const handleRemoveSavedProduct = async (id) => {
+    try {
+      await client.delete(`/api/saved-products/${id}`);
+      removeSavedProduct(id);
+    } catch (err) {
+      console.error('Error removing saved product:', err);
+      alert(err.response?.data?.error || 'Failed to remove saved product.');
+    }
+  };
+
   // Filter and Sort Logic
   const filteredProducts = savedProducts
     .filter((prod) => {
-      // 1. Search Query filter
-      const matchesSearch = prod.title.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // 2. Store filter
+      const title = prod.title || '';
+      const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStore = selectedStore === 'all' || prod.site === selectedStore;
 
-      // 3. Price Range filter
       let matchesPrice = true;
       if (prod.price !== null) {
         if (priceRange === 'under_2k') matchesPrice = prod.price < 2000;
@@ -43,16 +75,14 @@ const Home = () => {
         else if (priceRange === '10k_50k') matchesPrice = prod.price >= 10000 && prod.price <= 50000;
         else if (priceRange === 'above_50k') matchesPrice = prod.price > 50000;
       } else {
-        // Out of stock/null price matches only 'all'
         if (priceRange !== 'all') matchesPrice = false;
       }
 
       return matchesSearch && matchesStore && matchesPrice;
     })
     .sort((a, b) => {
-      // 4. Sorting logic
       if (sortBy === 'newest') {
-        return new Date(b.savedAt || 0) - new Date(a.savedAt || 0);
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
       }
       if (sortBy === 'price_low') {
         return (a.price ?? Infinity) - (b.price ?? Infinity);
@@ -66,8 +96,7 @@ const Home = () => {
       return 0;
     });
 
-  // Extract unique stores present in the saved products list for filters
-  const uniqueStores = ['all', ...new Set(savedProducts.map((p) => p.site))];
+  const uniqueStores = ['all', ...new Set(savedProducts.map((p) => p.site).filter(Boolean))];
 
   const renderStars = (ratingStr) => {
     const num = parseFloat(ratingStr);
@@ -109,7 +138,7 @@ const Home = () => {
               <span>Saved Products Hub</span>
             </h2>
             <p className="text-sm font-semibold text-ag-muted mt-1.5 max-w-xl leading-relaxed">
-              Your personalized inventory of curated links, active pricing updates, and platform catalog items.
+              Shared catalog of curated retail items, platform deals, and active trackers monitored by our users.
             </p>
           </div>
           <div className="flex items-center bg-ag-surface border border-ag-border px-4 py-2.5 rounded-2xl select-none flex-shrink-0">
@@ -127,7 +156,7 @@ const Home = () => {
             {/* Search Input */}
             <div>
               <label className="block text-[10px] font-bold text-ag-muted uppercase tracking-wider mb-2">
-                Search Saved Items
+                Search Curated Items
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ag-muted text-xs select-none">🔎</span>
@@ -208,13 +237,27 @@ const Home = () => {
         </div>
 
         {/* PRODUCTS INVENTORY LIST */}
-        {savedProducts.length === 0 ? (
+        {isLoading ? (
+          <div className="py-24 flex items-center justify-center">
+            <LoadingSpinner size={40} label="Syncing shared product catalog..." />
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center max-w-md mx-auto glass-card p-6">
+            <p className="text-ag-red text-sm font-bold mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2 bg-ag-surface border border-ag-border rounded-xl text-xs font-bold text-ag-white hover:border-ag-purple transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        ) : savedProducts.length === 0 ? (
           <div className="glass-card p-12 text-center max-w-xl mx-auto shadow-xl space-y-4">
             <span className="text-5xl block">🏠</span>
             <div className="space-y-1">
               <h3 className="font-extrabold text-lg text-ag-white">No saved products yet</h3>
               <p className="text-xs text-ag-muted leading-relaxed">
-                Start discovering best deals across e-commerce. Perform a search and save your favorite matched links to display them persistently here!
+                Start discovering best deals across e-commerce. Perform a search and save your favorite matched links to publish them here!
               </p>
             </div>
             <a 
@@ -235,28 +278,31 @@ const Home = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 fade-in-up">
             {filteredProducts.map((prod) => {
-              const store = STORES_CONFIG[prod.site] || { name: prod.siteName, bg: 'from-gray-700 to-gray-800', text: 'text-white' };
+              const store = STORES_CONFIG[prod.site] || { name: prod.site, bg: 'from-gray-700 to-gray-800', text: 'text-white' };
               const isInCart = cart.some(item => item.productUrl === prod.productUrl);
+              const canDelete = user && (user.role === 'admin' || prod.userId === user.userId);
 
               return (
                 <div 
-                  key={prod.id}
+                  key={prod._id}
                   className="glass-card overflow-hidden flex flex-col h-full shadow-lg group hover:-translate-y-1 transition-all duration-300 relative"
                 >
-                  {/* Remove Pin Ribbon/Icon */}
-                  <button
-                    onClick={() => {
-                      showConfirm(
-                        'Remove Saved Product',
-                        `Are you sure you want to remove "${prod.title}" from your saved list?`,
-                        () => removeSavedProduct(prod.id)
-                      );
-                    }}
-                    className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-ag-black/80 hover:bg-ag-red/20 border border-ag-border hover:border-ag-red flex items-center justify-center text-ag-muted hover:text-ag-red transition-all cursor-pointer shadow-md focus:outline-none"
-                    title="Remove Pin"
-                  >
-                    ✕
-                  </button>
+                  {/* Remove Pin Ribbon/Icon - only visible to owner or admins */}
+                  {canDelete && (
+                    <button
+                      onClick={() => {
+                        showConfirm(
+                          'Remove Saved Product',
+                          `Are you sure you want to remove "${prod.title}" from the shared catalog?`,
+                          () => handleRemoveSavedProduct(prod._id)
+                        );
+                      }}
+                      className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-ag-black/80 hover:bg-ag-red/20 border border-ag-border hover:border-ag-red flex items-center justify-center text-ag-muted hover:text-ag-red transition-all cursor-pointer shadow-md focus:outline-none"
+                      title="Remove Pin"
+                    >
+                      ✕
+                    </button>
+                  )}
 
                   {/* Store Header Badge */}
                   <div className={`px-4 py-2 font-black text-[10px] uppercase bg-gradient-to-r ${store.bg} ${store.text} pr-10 select-none`}>
@@ -327,7 +373,7 @@ const Home = () => {
                         {prod.price !== null && (
                           <button
                             onClick={() => openAddModal(prod.productUrl)}
-                            className="w-1/2 py-2 px-3 border border-ag-border hover:border-ag-purple text-ag-muted hover:text-ag-white text-[10px] font-black rounded-xl transition-all flex items-center justify-center"
+                            className="w-1/2 py-2 px-3 border border-ag-border hover:border-ag-purple text-ag-muted hover:text-ag-white text-[10px] font-black rounded-xl transition-all flex items-center justify-center cursor-pointer"
                           >
                             🔔 Track Alert
                           </button>

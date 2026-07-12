@@ -279,12 +279,24 @@ const Navbar = () => {
 
             {/* Profile Avatar & Email */}
             <Link to="/profile" className="flex items-center space-x-2 group hover:opacity-90 transition-opacity">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ag-purple to-ag-violet flex items-center justify-center text-sm font-bold text-white shadow-md select-none group-hover:ring-2 group-hover:ring-ag-purple transition-all">
-                {getEmailInitial()}
+              <div className="relative">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ag-purple to-ag-violet flex items-center justify-center text-sm font-bold text-white shadow-md select-none group-hover:ring-2 group-hover:ring-ag-purple transition-all">
+                  {getEmailInitial()}
+                </div>
+                {user.role === 'admin' && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-ag-amber text-[6px] font-black text-black ring-1 ring-[#0A0A0F]" title="Admin User">
+                    ★
+                  </span>
+                )}
               </div>
               <span className="hidden md:inline text-sm font-medium text-ag-white/90 truncate max-w-[120px] group-hover:text-ag-purple transition-colors">
                 {user.name || user.email}
               </span>
+              {user.role === 'admin' && (
+                <span className="hidden md:inline text-[9px] px-1.5 py-0.5 rounded bg-ag-amber/10 border border-ag-amber/20 text-ag-amber font-black tracking-wider uppercase select-none">
+                  Admin
+                </span>
+              )}
             </Link>
 
             {/* Divider */}

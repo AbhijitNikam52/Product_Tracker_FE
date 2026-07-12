@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import useStore from '../store/useStore';
 
 const Sidebar = () => {
-  const { isSidebarOpen, closeSidebar } = useStore();
+  const { isSidebarOpen, closeSidebar, user } = useStore();
   const location = useLocation();
 
   if (!isSidebarOpen) return null;
@@ -15,6 +15,10 @@ const Sidebar = () => {
     { name: 'Compare Prices', path: '/compare', icon: '⚖️' },
     { name: 'My Profile', path: '/profile', icon: '👤' }
   ];
+
+  if (user && user.role === 'admin') {
+    links.push({ name: 'Admin Panel', path: '/admin', icon: '⚙️' });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex">
