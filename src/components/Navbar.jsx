@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import useStore from '../store/useStore';
 import client from '../api/client';
 
@@ -78,10 +79,10 @@ const Navbar = () => {
 
           <div className="flex items-center space-x-2">
             <span className="text-ag-purple text-2xl font-black flex items-center animate-bounce duration-1000">
-              ⬇
+              🏷️
             </span>
             <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-ag-purple to-ag-violet bg-clip-text text-transparent">
-              Antigravity
+              PriceDekho
             </span>
           </div>
         </div>
@@ -277,14 +278,14 @@ const Navbar = () => {
             </div>
 
             {/* Profile Avatar & Email */}
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ag-purple to-ag-violet flex items-center justify-center text-sm font-bold text-white shadow-md select-none">
+            <Link to="/profile" className="flex items-center space-x-2 group hover:opacity-90 transition-opacity">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ag-purple to-ag-violet flex items-center justify-center text-sm font-bold text-white shadow-md select-none group-hover:ring-2 group-hover:ring-ag-purple transition-all">
                 {getEmailInitial()}
               </div>
-              <span className="hidden md:inline text-sm font-medium text-ag-white/90 truncate max-w-[120px]">
-                {user.email}
+              <span className="hidden md:inline text-sm font-medium text-ag-white/90 truncate max-w-[120px] group-hover:text-ag-purple transition-colors">
+                {user.name || user.email}
               </span>
-            </div>
+            </Link>
 
             {/* Divider */}
             <span className="h-4 w-px bg-ag-border hidden md:inline" />

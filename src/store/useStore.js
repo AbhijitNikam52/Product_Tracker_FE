@@ -3,7 +3,7 @@ import { create } from 'zustand';
 // Helper to safely parse stored user from localStorage
 const getInitialUser = () => {
   try {
-    const stored = localStorage.getItem('antigravity_user');
+    const stored = localStorage.getItem('pricedekho_user');
     return stored ? JSON.parse(stored) : null;
   } catch (e) {
     console.error('Error loading stored user', e);
@@ -15,17 +15,28 @@ const useStore = create((set, get) => ({
   // AUTH SLICE
   user: getInitialUser(),
   login: (userData) => {
-    // userData contains { token, user: { userId, email } }
+    // userData contains { token, user: { userId, email, name, phone, emailNotifications } }
     const mappedUser = {
       userId: userData.user.userId,
       email: userData.user.email,
+      name: userData.user.name || '',
+      phone: userData.user.phone || '',
+      emailNotifications: userData.user.emailNotifications !== false,
       token: userData.token
     };
-    localStorage.setItem('antigravity_user', JSON.stringify(mappedUser));
+    localStorage.setItem('pricedekho_user', JSON.stringify(mappedUser));
     set({ user: mappedUser });
   },
+  updateUser: (fields) => {
+    const currentUser = get().user;
+    if (currentUser) {
+      const updated = { ...currentUser, ...fields };
+      localStorage.setItem('pricedekho_user', JSON.stringify(updated));
+      set({ user: updated });
+    }
+  },
   logout: () => {
-    localStorage.removeItem('antigravity_user');
+    localStorage.removeItem('pricedekho_user');
     set({ user: null, items: [], notifications: [], unreadCount: 0 });
   },
 
@@ -96,7 +107,7 @@ const useStore = create((set, get) => ({
   // CART SLICE
   cart: (() => {
     try {
-      const stored = localStorage.getItem('antigravity_cart');
+      const stored = localStorage.getItem('pricedekho_cart');
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
       return [];
@@ -107,24 +118,24 @@ const useStore = create((set, get) => ({
     const exists = currentCart.some(i => i.productUrl === item.productUrl);
     if (!exists) {
       const updated = [...currentCart, { ...item, id: item.site + '_' + Date.now() }];
-      localStorage.setItem('antigravity_cart', JSON.stringify(updated));
+      localStorage.setItem('pricedekho_cart', JSON.stringify(updated));
       set({ cart: updated });
     }
   },
   removeFromCart: (id) => {
     const updated = get().cart.filter(i => i.id !== id);
-    localStorage.setItem('antigravity_cart', JSON.stringify(updated));
+    localStorage.setItem('pricedekho_cart', JSON.stringify(updated));
     set({ cart: updated });
   },
   clearCart: () => {
-    localStorage.setItem('antigravity_cart', JSON.stringify([]));
+    localStorage.setItem('pricedekho_cart', JSON.stringify([]));
     set({ cart: [] });
   },
 
   // SAVED PRODUCTS (HOME) SLICE
   savedProducts: (() => {
     try {
-      const stored = localStorage.getItem('antigravity_saved_products');
+      const stored = localStorage.getItem('pricedekho_saved_products');
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
       return [];
@@ -135,13 +146,13 @@ const useStore = create((set, get) => ({
     const exists = currentSaved.some(p => p.productUrl === product.productUrl);
     if (!exists) {
       const updated = [...currentSaved, { ...product, id: product.site + '_' + Date.now(), savedAt: new Date().toISOString() }];
-      localStorage.setItem('antigravity_saved_products', JSON.stringify(updated));
+      localStorage.setItem('pricedekho_saved_products', JSON.stringify(updated));
       set({ savedProducts: updated });
     }
   },
   removeSavedProduct: (id) => {
     const updated = get().savedProducts.filter(p => p.id !== id);
-    localStorage.setItem('antigravity_saved_products', JSON.stringify(updated));
+    localStorage.setItem('pricedekho_saved_products', JSON.stringify(updated));
     set({ savedProducts: updated });
   }
 }));

@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --ag-black:   #0A0A0F;
-  --ag-surface: #12121A;
-  --ag-border:  #1E1E2E;
-  --ag-purple:  #7C3AED;
-  --ag-violet:  #A855F7;
+  --ag-black:   #080C14;
+  --ag-surface: #0F1626;
+  --ag-border:  #1E293B;
+  --ag-purple:  #4F46E5;
+  --ag-violet:  #0D9488;
   --ag-green:   #10B981;
   --ag-red:     #EF4444;
   --ag-amber:   #F59E0B;
-  --ag-white:   #F8F8FF;
-  --ag-muted:   #6B7280;
+  --ag-white:   #F9FAFB;
+  --ag-muted:   #9CA3AF;
 }
 
 body {
@@ -25,7 +25,7 @@ body {
 
 /* Glassmorphism Styles */
 .glass-card {
-  background: rgba(18, 18, 26, 0.85);
+  background: rgba(15, 22, 38, 0.7);
   border: 1px solid var(--ag-border);
   border-radius: 16px;
   backdrop-filter: blur(12px);
@@ -35,7 +35,7 @@ body {
 
 .glass-card:hover {
   border-color: var(--ag-purple);
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 8px 30px rgba(79, 70, 229, 0.15);
 }
 
 /* Buttons */
