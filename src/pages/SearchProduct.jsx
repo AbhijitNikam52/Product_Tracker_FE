@@ -39,8 +39,38 @@ const SEARCH_MESSAGES = [
 ];
 
 const SearchProduct = () => {
-  const { openAddModal, cart, addToCart, savedProducts, saveProduct } = useStore();
+  const { openAddModal, cart, addToCart, savedProducts, saveProduct, setSavedProducts } = useStore();
   const [query, setQuery] = useState('');
+
+  // Fetch initial saved products if not already loaded
+  useEffect(() => {
+    const fetchSaved = async () => {
+      try {
+        const res = await client.get('/api/saved-products');
+        setSavedProducts(res.data);
+      } catch (err) {
+        console.error('Failed to pre-fetch saved products:', err);
+      }
+    };
+    fetchSaved();
+  }, [setSavedProducts]);
+
+  const handleSaveProduct = async (product) => {
+    try {
+      const res = await client.post('/api/saved-products', {
+        title: product.title,
+        imageUrl: product.imageUrl,
+        price: product.price,
+        rating: product.rating,
+        productUrl: product.productUrl,
+        site: product.site
+      });
+      saveProduct(res.data);
+    } catch (err) {
+      console.error('Error saving product to shared catalog:', err);
+      alert(err.response?.data?.error || 'Failed to save product.');
+    }
+  };
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
@@ -364,9 +394,9 @@ const SearchProduct = () => {
                           </button>
 
                           <button
-                            onClick={() => saveProduct(res)}
+                            onClick={() => handleSaveProduct(res)}
                             disabled={isSaved}
-                            className={`w-1/2 py-2 px-3 text-[10px] font-black rounded-xl transition-all flex items-center justify-center ${
+                            className={`w-1/2 py-2 px-3 text-[10px] font-black rounded-xl transition-all flex items-center justify-center cursor-pointer ${
                               isSaved
                                 ? 'bg-ag-green/20 text-ag-green border border-ag-green/20 cursor-not-allowed'
                                 : 'bg-ag-surface border border-ag-border hover:border-ag-green text-ag-muted hover:text-ag-white'
