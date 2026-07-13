@@ -12,6 +12,7 @@ import SearchProduct from './pages/SearchProduct';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
+import Coupons from './pages/Coupons';
 
 // Custom Route Guard for protecting dashboard
 const PrivateRoute = ({ children }) => {
@@ -96,6 +97,14 @@ const App = () => {
           element={
             <PrivateRoute>
               <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/coupons"
+          element={
+            <PrivateRoute>
+              <Coupons />
             </PrivateRoute>
           }
         />

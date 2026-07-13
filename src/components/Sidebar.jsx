@@ -13,6 +13,7 @@ const Sidebar = () => {
     { name: 'Product Search', path: '/search', icon: '🔍' },
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Compare Prices', path: '/compare', icon: '⚖️' },
+    { name: 'Coupons & Offers', path: '/coupons', icon: '🎟️' },
     { name: 'My Profile', path: '/profile', icon: '👤' }
   ];
 

@@ -27,7 +27,7 @@ const CHART_COLORS = ['#4F46E5', '#0D9488', '#10B981', '#F59E0B', '#EF4444'];
 const AdminDashboard = () => {
   const { dialog, showConfirm, showAlert, closeDialog } = useStore();
 
-  // Tab State: 'overview' | 'users' | 'items' | 'comparisons'
+  // Tab State: 'overview' | 'users' | 'items' | 'comparisons' | 'coupons'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Backend Data State
@@ -35,6 +35,7 @@ const AdminDashboard = () => {
   const [usersList, setUsersList] = useState([]);
   const [itemsList, setItemsList] = useState([]);
   const [comparisonsList, setComparisonsList] = useState([]);
+  const [couponsList, setCouponsList] = useState([]);
   
   // UI Loaders
   const [pageLoading, setPageLoading] = useState(true);
@@ -46,7 +47,29 @@ const AdminDashboard = () => {
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [compareSearch, setCompareSearch] = useState('');
+  const [couponSearch, setCouponSearch] = useState('');
   const [selectedSite, setSelectedSite] = useState('all');
+  const [selectedCouponType, setSelectedCouponType] = useState('all');
+  const [selectedCouponStore, setSelectedCouponStore] = useState('all');
+  const [selectedCouponSource, setSelectedCouponSource] = useState('all');
+
+  // Coupon Form Modal State
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState(null);
+  const [couponForm, setCouponForm] = useState({
+    code: '',
+    description: '',
+    discountType: 'other',
+    discountValue: '',
+    couponType: 'store',
+    store: 'amazon',
+    category: '',
+    brand: '',
+    productUrl: '',
+    isVerified: true,
+    expiryDate: '',
+    isActive: true
+  });
 
   // Fetch Dashboard Stats & System info
   const fetchDashboardStats = async () => {
@@ -89,6 +112,111 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch Coupons
+  const fetchCoupons = async () => {
+    try {
+      const res = await client.get('/api/admin/coupons');
+      setCouponsList(res.data);
+    } catch (err) {
+      console.error('Error fetching coupons:', err);
+    }
+  };
+
+  const handleSaveCoupon = async (e) => {
+    if (e) e.preventDefault();
+    setActionInProgress(true);
+    try {
+      const payload = {
+        ...couponForm,
+        discountValue: couponForm.discountValue ? parseFloat(couponForm.discountValue) : null,
+        expiryDate: couponForm.expiryDate || null
+      };
+
+      if (editingCoupon) {
+        // Edit existing
+        const res = await client.put(`/api/admin/coupons/${editingCoupon._id}`, payload);
+        setCouponsList(prev => prev.map(c => c._id === editingCoupon._id ? res.data : c));
+        triggerNotification('Coupon updated successfully.');
+      } else {
+        // Create new
+        const res = await client.post('/api/admin/coupons', payload);
+        setCouponsList(prev => [res.data, ...prev]);
+        triggerNotification('Coupon created successfully.');
+      }
+      setShowCouponModal(false);
+      setEditingCoupon(null);
+    } catch (err) {
+      console.error('Error saving coupon:', err);
+      triggerNotification(err.response?.data?.error || 'Failed to save coupon.', true);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
+  const handleDeleteCoupon = (coupon) => {
+    showConfirm(
+      'Delete Coupon?',
+      `Are you sure you want to delete coupon "${coupon.code || coupon.description}"?`,
+      async () => {
+        setActionInProgress(true);
+        try {
+          await client.delete(`/api/admin/coupons/${coupon._id}`);
+          setCouponsList(prev => prev.filter(c => c._id !== coupon._id));
+          triggerNotification('Coupon deleted successfully.');
+        } catch (err) {
+          console.error('Error deleting coupon:', err);
+          triggerNotification(err.response?.data?.error || 'Failed to delete coupon.', true);
+        } finally {
+          setActionInProgress(false);
+        }
+      }
+    );
+  };
+
+  const handleToggleVerification = async (coupon) => {
+    setActionInProgress(true);
+    try {
+      const updatedVerified = !coupon.isVerified;
+      await client.post(`/api/coupons/${coupon._id}/verify`, { isVerified: updatedVerified });
+      setCouponsList(prev => prev.map(c => c._id === coupon._id ? { ...c, isVerified: updatedVerified } : c));
+      triggerNotification(`Coupon verification set to ${updatedVerified}`);
+    } catch (err) {
+      console.error('Error toggling verification:', err);
+      triggerNotification(err.response?.data?.error || 'Failed to update verification status.', true);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
+  const handleToggleActive = async (coupon) => {
+    setActionInProgress(true);
+    try {
+      const updatedActive = !coupon.isActive;
+      await client.put(`/api/admin/coupons/${coupon._id}`, { isActive: updatedActive });
+      setCouponsList(prev => prev.map(c => c._id === coupon._id ? { ...c, isActive: updatedActive } : c));
+      triggerNotification(updatedActive ? 'Coupon activated.' : 'Coupon deactivated.');
+    } catch (err) {
+      console.error('Error toggling status:', err);
+      triggerNotification(err.response?.data?.error || 'Failed to update status.', true);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
+  const handleSyncAffiliate = async () => {
+    setActionInProgress(true);
+    try {
+      const res = await client.post('/api/admin/coupons/sync-affiliate');
+      await fetchCoupons();
+      triggerNotification(res.data.message || 'Affiliate coupons synced successfully.');
+    } catch (err) {
+      console.error('Error syncing affiliate coupons:', err);
+      triggerNotification('Failed to sync affiliate coupons.', true);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
   // Initial Load
   useEffect(() => {
     const loadAllData = async () => {
@@ -98,7 +226,8 @@ const AdminDashboard = () => {
         fetchDashboardStats(), 
         fetchUsers(), 
         fetchItems(),
-        fetchComparisons()
+        fetchComparisons(),
+        fetchCoupons()
       ]);
       setPageLoading(false);
     };
@@ -408,7 +537,8 @@ const AdminDashboard = () => {
                 { id: 'overview', name: 'Overview & Controls', icon: '💻' },
                 { id: 'users', name: `Manage Users (${usersList.length})`, icon: '👥' },
                 { id: 'items', name: `Tracked Products (${itemsList.length})`, icon: '🏷️' },
-                { id: 'comparisons', name: `Compared Items (${comparisonsList.length})`, icon: '⚖️' }
+                { id: 'comparisons', name: `Compared Items (${comparisonsList.length})`, icon: '⚖️' },
+                { id: 'coupons', name: `Manage Coupons (${couponsList.length})`, icon: '🎟️' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1008,10 +1138,496 @@ const AdminDashboard = () => {
               </div>
             )}
 
+            {/* TAB CONTENT 5: MANAGE COUPONS */}
+            {activeTab === 'coupons' && (
+              <div className="space-y-6 fade-in-up">
+                
+                {/* Search & Actions Row */}
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                  {/* Search input */}
+                  <div className="relative w-full md:w-80">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ag-muted text-xs">🔎</span>
+                    <input
+                      type="text"
+                      value={couponSearch}
+                      onChange={(e) => setCouponSearch(e.target.value)}
+                      placeholder="Search coupons by code or description..."
+                      className="w-full bg-ag-surface border border-ag-border rounded-lg pl-9 pr-4 py-2 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                    />
+                  </div>
+
+                  {/* Filters & Actions */}
+                  <div className="flex flex-wrap gap-3 w-full md:w-auto items-center justify-end">
+                    
+                    {/* Store Filter */}
+                    <select
+                      value={selectedCouponStore}
+                      onChange={(e) => setSelectedCouponStore(e.target.value)}
+                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none"
+                    >
+                      <option value="all">All Stores</option>
+                      <option value="amazon">Amazon</option>
+                      <option value="flipkart">Flipkart</option>
+                      <option value="myntra">Myntra</option>
+                      <option value="ajio">Ajio</option>
+                      <option value="generic">Other / Generic</option>
+                    </select>
+
+                    {/* Type Filter */}
+                    <select
+                      value={selectedCouponType}
+                      onChange={(e) => setSelectedCouponType(e.target.value)}
+                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="store">Store-wide</option>
+                      <option value="category">Category-level</option>
+                      <option value="brand">Brand-level</option>
+                      <option value="product">Product-level</option>
+                      <option value="bank_offer">Bank Offer</option>
+                    </select>
+
+                    {/* Source Filter */}
+                    <select
+                      value={selectedCouponSource}
+                      onChange={(e) => setSelectedCouponSource(e.target.value)}
+                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none"
+                    >
+                      <option value="all">All Sources</option>
+                      <option value="scraped">Scraped</option>
+                      <option value="admin">Admin Added</option>
+                      <option value="affiliate">Affiliate Feed</option>
+                    </select>
+
+                    {/* Sync Affiliate Feed Button */}
+                    <button
+                      onClick={handleSyncAffiliate}
+                      disabled={actionInProgress}
+                      className="px-4 py-2 bg-ag-surface hover:bg-ag-surface/80 border border-ag-border hover:border-ag-green hover:text-ag-green rounded-lg text-xs font-bold text-ag-white transition-all cursor-pointer"
+                    >
+                      Sync Affiliate 🔄
+                    </button>
+
+                    {/* Add Coupon Button */}
+                    <button
+                      onClick={() => {
+                        setEditingCoupon(null);
+                        setCouponForm({
+                          code: '',
+                          description: '',
+                          discountType: 'other',
+                          discountValue: '',
+                          couponType: 'store',
+                          store: 'amazon',
+                          category: '',
+                          brand: '',
+                          productUrl: '',
+                          isVerified: true,
+                          expiryDate: '',
+                          isActive: true
+                        });
+                        setShowCouponModal(true);
+                      }}
+                      className="px-4 py-2 bg-ag-purple hover:bg-ag-violet rounded-lg text-xs font-black text-white transition-all cursor-pointer"
+                    >
+                      + Add Coupon
+                    </button>
+                  </div>
+                </div>
+
+                {/* Coupons Table */}
+                <div className="glass-card overflow-hidden border border-ag-border">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-ag-black/50 border-b border-ag-border text-ag-muted font-bold text-[10px] uppercase tracking-wider">
+                          <th className="px-6 py-4">Coupon Info</th>
+                          <th className="px-6 py-4">Store</th>
+                          <th className="px-6 py-4">Type</th>
+                          <th className="px-6 py-4">Source</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4">Verified</th>
+                          <th className="px-6 py-4">Expiry</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-ag-border/50 text-xs text-ag-muted">
+                        {couponsList.filter(c => {
+                          const queryMatch = !couponSearch.trim() || 
+                            (c.code || '').toLowerCase().includes(couponSearch.toLowerCase()) || 
+                            c.description.toLowerCase().includes(couponSearch.toLowerCase());
+                          const storeMatch = selectedCouponStore === 'all' || c.store === selectedCouponStore;
+                          const typeMatch = selectedCouponType === 'all' || c.couponType === selectedCouponType;
+                          const sourceMatch = selectedCouponSource === 'all' || c.source === selectedCouponSource;
+                          return queryMatch && storeMatch && typeMatch && sourceMatch;
+                        }).length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="px-6 py-12 text-center text-ag-muted font-semibold">
+                              No coupons or offers found in database.
+                            </td>
+                          </tr>
+                        ) : (
+                          couponsList.filter(c => {
+                            const queryMatch = !couponSearch.trim() || 
+                              (c.code || '').toLowerCase().includes(couponSearch.toLowerCase()) || 
+                              c.description.toLowerCase().includes(couponSearch.toLowerCase());
+                            const storeMatch = selectedCouponStore === 'all' || c.store === selectedCouponStore;
+                            const typeMatch = selectedCouponType === 'all' || c.couponType === selectedCouponType;
+                            const sourceMatch = selectedCouponSource === 'all' || c.source === selectedCouponSource;
+                            return queryMatch && storeMatch && typeMatch && sourceMatch;
+                          }).map(coupon => (
+                            <tr key={coupon._id} className="hover:bg-ag-surface/10 transition-colors">
+                              
+                              {/* Coupon Info */}
+                              <td className="px-6 py-4">
+                                <div className="space-y-1 max-w-sm">
+                                  {coupon.code ? (
+                                    <span className="font-extrabold bg-ag-purple/10 text-ag-purple border border-ag-purple/20 px-2 py-0.5 rounded text-[11px] uppercase tracking-wide">
+                                      {coupon.code}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-ag-muted italic font-medium">Auto-applied offer / No code</span>
+                                  )}
+                                  <p className="text-ag-white font-semibold leading-relaxed text-[11px] mt-1">
+                                    {coupon.description}
+                                  </p>
+                                  {coupon.discountValue && (
+                                    <span className="text-[10px] text-ag-green font-bold block mt-0.5">
+                                      Value: {coupon.discountType === 'percentage' ? `${coupon.discountValue}% off` : `₹${coupon.discountValue} off`}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Store */}
+                              <td className="px-6 py-4 capitalize text-ag-white font-bold">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] border ${
+                                  coupon.store === 'amazon' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+                                  coupon.store === 'flipkart' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                  coupon.store === 'myntra' ? 'bg-pink-500/10 text-pink-400 border-pink-500/20' :
+                                  coupon.store === 'ajio' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                                }`}>
+                                  {coupon.store}
+                                </span>
+                              </td>
+
+                              {/* Type */}
+                              <td className="px-6 py-4 capitalize font-semibold text-ag-muted">
+                                {coupon.couponType.replace('_', ' ')}
+                                {coupon.brand && <span className="block text-[10px] text-ag-purple mt-0.5 font-bold">Brand: {coupon.brand}</span>}
+                                {coupon.category && <span className="block text-[10px] text-ag-purple mt-0.5 font-bold">Cat: {coupon.category}</span>}
+                              </td>
+
+                              {/* Source */}
+                              <td className="px-6 py-4">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black tracking-wide uppercase ${
+                                  coupon.source === 'scraped' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                  coupon.source === 'affiliate' ? 'bg-purple-500/10 text-ag-purple border border-ag-purple/20' :
+                                  'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                }`}>
+                                  {coupon.source}
+                                </span>
+                              </td>
+
+                              {/* Status */}
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleToggleActive(coupon)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                    coupon.isActive 
+                                      ? 'bg-ag-green/20 text-ag-green border border-ag-green/20 hover:bg-ag-red/20 hover:text-ag-red hover:border-ag-red/20' 
+                                      : 'bg-ag-red/20 text-ag-red border border-ag-red/20 hover:bg-ag-green/20 hover:text-ag-green hover:border-ag-green/20'
+                                  }`}
+                                >
+                                  {coupon.isActive ? 'Active' : 'Paused'}
+                                </button>
+                              </td>
+
+                              {/* Verified */}
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleToggleVerification(coupon)}
+                                  className={`px-2.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors flex items-center gap-1 ${
+                                    coupon.isVerified 
+                                      ? 'bg-ag-green/10 text-ag-green border border-ag-green/20' 
+                                      : 'bg-ag-muted/10 text-ag-muted border border-ag-border'
+                                  }`}
+                                >
+                                  <span>{coupon.isVerified ? '✅ Verified' : '❓ Unverified'}</span>
+                                </button>
+                              </td>
+
+                              {/* Expiry */}
+                              <td className="px-6 py-4 text-ag-muted font-medium">
+                                {coupon.expiryDate ? new Date(coupon.expiryDate).toLocaleDateString() : 'Never'}
+                              </td>
+
+                              {/* Actions */}
+                              <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                <button
+                                  onClick={() => {
+                                    setEditingCoupon(coupon);
+                                    setCouponForm({
+                                      code: coupon.code,
+                                      description: coupon.description,
+                                      discountType: coupon.discountType || 'other',
+                                      discountValue: coupon.discountValue || '',
+                                      couponType: coupon.couponType,
+                                      store: coupon.store,
+                                      category: coupon.category || '',
+                                      brand: coupon.brand || '',
+                                      productUrl: coupon.productUrl || '',
+                                      isVerified: coupon.isVerified,
+                                      expiryDate: coupon.expiryDate ? new Date(coupon.expiryDate).toISOString().split('T')[0] : '',
+                                      isActive: coupon.isActive
+                                    });
+                                    setShowCouponModal(true);
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg border border-ag-border hover:border-ag-purple hover:bg-ag-purple/5 text-[10px] font-bold text-ag-white transition-all cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCoupon(coupon)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-ag-border hover:border-ag-red hover:bg-ag-red/5 text-[10px] font-bold text-ag-red transition-all cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
           </>
         )}
 
       </div>
+
+      {/* Coupon Creation / Editing Modal */}
+      {showCouponModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-lg overflow-hidden border border-ag-border shadow-2xl animate-scale-up">
+            
+            <div className="px-6 py-4 border-b border-ag-border bg-ag-black/50 flex items-center justify-between">
+              <h3 className="font-extrabold text-sm text-ag-white">
+                {editingCoupon ? 'Edit Coupon Code / Offer' : 'Create New Coupon / Offer'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCouponModal(false);
+                  setEditingCoupon(null);
+                }}
+                className="text-ag-muted hover:text-ag-white text-base focus:outline-none cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCoupon} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* Store & Type */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Store *</label>
+                  <select
+                    value={couponForm.store}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, store: e.target.value }))}
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                    required
+                  >
+                    <option value="amazon">Amazon</option>
+                    <option value="flipkart">Flipkart</option>
+                    <option value="myntra">Myntra</option>
+                    <option value="ajio">Ajio</option>
+                    <option value="croma">Croma</option>
+                    <option value="reliancedigital">Reliance Digital</option>
+                    <option value="vijaysales">Vijay Sales</option>
+                    <option value="generic">Other / Generic</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Coupon Type *</label>
+                  <select
+                    value={couponForm.couponType}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, couponType: e.target.value }))}
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                    required
+                  >
+                    <option value="store">Store-level</option>
+                    <option value="category">Category-level</option>
+                    <option value="brand">Brand-level</option>
+                    <option value="product">Product-level</option>
+                    <option value="bank_offer">Bank Offer</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Code & Description */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Promo Code</label>
+                  <input
+                    type="text"
+                    value={couponForm.code}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, code: e.target.value }))}
+                    placeholder="e.g. SAVE20"
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple placeholder:text-ag-muted uppercase font-bold"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Offer Description *</label>
+                  <input
+                    type="text"
+                    value={couponForm.description}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="e.g. 10% instant discount up to ₹1250 on HDFC Cards"
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple placeholder:text-ag-muted"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Discount Value */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Discount Type</label>
+                  <select
+                    value={couponForm.discountType}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, discountType: e.target.value }))}
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                  >
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed Amount (₹)</option>
+                    <option value="other">Other / Custom</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Discount Value</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={couponForm.discountValue}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, discountValue: e.target.value }))}
+                    placeholder="e.g. 10 or 500"
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple placeholder:text-ag-muted"
+                  />
+                </div>
+              </div>
+
+              {/* Conditional Fields: Brand, Category, Product URL */}
+              {couponForm.couponType === 'brand' && (
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Brand Name *</label>
+                  <input
+                    type="text"
+                    value={couponForm.brand}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, brand: e.target.value }))}
+                    placeholder="e.g. Sony, Nike, Samsung"
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                    required
+                  />
+                </div>
+              )}
+
+              {couponForm.couponType === 'category' && (
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Category *</label>
+                  <input
+                    type="text"
+                    value={couponForm.category}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, category: e.target.value }))}
+                    placeholder="e.g. Electronics, Fashion, Books"
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                    required
+                  />
+                </div>
+              )}
+
+              {couponForm.couponType === 'product' && (
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Product Page URL *</label>
+                  <input
+                    type="url"
+                    value={couponForm.productUrl}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, productUrl: e.target.value }))}
+                    placeholder="e.g. https://www.amazon.in/dp/B0CHX2F28B"
+                    className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple placeholder:text-ag-muted"
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Expiry Date */}
+              <div>
+                <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={couponForm.expiryDate}
+                  onChange={(e) => setCouponForm(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  className="w-full bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                />
+              </div>
+
+              {/* Toggles */}
+              <div className="flex items-center gap-6 pt-2">
+                <label className="flex items-center space-x-2 text-xs font-bold text-ag-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={couponForm.isVerified}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, isVerified: e.target.checked }))}
+                    className="rounded text-ag-purple focus:ring-ag-purple focus:ring-opacity-20 h-4 w-4 bg-ag-black border-ag-border"
+                  />
+                  <span>Mark as Verified</span>
+                </label>
+
+                <label className="flex items-center space-x-2 text-xs font-bold text-ag-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={couponForm.isActive}
+                    onChange={(e) => setCouponForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                    className="rounded text-ag-purple focus:ring-ag-purple focus:ring-opacity-20 h-4 w-4 bg-ag-black border-ag-border"
+                  />
+                  <span>Set Active</span>
+                </label>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-ag-border/50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCouponModal(false);
+                    setEditingCoupon(null);
+                  }}
+                  className="px-4 py-2 border border-ag-border hover:bg-ag-surface/50 text-ag-muted hover:text-ag-white text-xs font-extrabold rounded-lg transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionInProgress}
+                  className="px-5 py-2 bg-ag-purple hover:bg-ag-violet text-white text-xs font-extrabold rounded-lg shadow-md shadow-ag-purple/10 transition-all cursor-pointer disabled:opacity-50 font-black"
+                >
+                  {actionInProgress ? 'Saving...' : 'Save Coupon'}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
 
       {dialog && <CustomPopup />}
     </div>
