@@ -73,6 +73,7 @@ const SearchProduct = () => {
   };
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState(null);
+  const [copiedCodeId, setCopiedCodeId] = useState(null);
   const [error, setError] = useState(null);
   
   // Rotating status message
@@ -357,6 +358,37 @@ const SearchProduct = () => {
                           }
                         </span>
                       </div>
+
+                      {/* Coupons Section */}
+                      {res.coupons && res.coupons.length > 0 && (
+                        <div className="pt-2 border-t border-ag-border/50">
+                          <span className="text-[9px] font-bold text-ag-muted uppercase tracking-wider block mb-1">
+                            Available Offers ({res.coupons.length})
+                          </span>
+                          <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                            {res.coupons.map((coupon, idx) => (
+                              <div key={idx} className="bg-ag-black/50 p-1.5 rounded border border-ag-border/50 text-[10px]">
+                                <p className="text-ag-white leading-normal font-medium">{coupon.description}</p>
+                                {coupon.code && (
+                                  <div className="flex items-center justify-between mt-1 bg-ag-black px-1.5 py-0.5 rounded border border-ag-border/30">
+                                    <span className="font-bold text-ag-purple font-mono uppercase">{coupon.code}</span>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(coupon.code);
+                                        setCopiedCodeId(coupon.code + '_' + idx);
+                                        setTimeout(() => setCopiedCodeId(null), 2000);
+                                      }}
+                                      className="text-[9px] text-ag-green font-bold hover:underline cursor-pointer focus:outline-none"
+                                    >
+                                      {copiedCodeId === (coupon.code + '_' + idx) ? 'Copied!' : 'Copy'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Buttons */}
                       <div className="space-y-2 pt-2 border-t border-ag-border/50">
