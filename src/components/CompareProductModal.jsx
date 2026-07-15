@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
 import LoadingSpinner from './LoadingSpinner';
+import { toast } from 'react-toastify';
 
 const CompareProductModal = () => {
   const { isCompareModalOpen, closeCompareModal, addComparisonProduct, showAlert } = useStore();
@@ -39,20 +40,20 @@ const CompareProductModal = () => {
     e.preventDefault();
     
     if (!productName.trim()) {
-      showAlert('Missing Field', 'Please enter a product name.');
+      toast.error('Please enter a product name.');
       return;
     }
 
     const activeUrls = urls.filter(u => u.trim() !== '');
     if (activeUrls.length === 0) {
-      showAlert('Missing Field', 'Please enter at least one valid product URL.');
+      toast.error('Please enter at least one valid product URL.');
       return;
     }
 
     // Basic URL validation
     const invalidUrl = activeUrls.find(u => !/^https?:\/\/.+/.test(u));
     if (invalidUrl) {
-      showAlert('Invalid URL', 'Please check your links. They must start with http:// or https://');
+      toast.error('Please check your links. They must start with http:// or https://');
       return;
     }
 
@@ -64,11 +65,12 @@ const CompareProductModal = () => {
       });
       if (response.data) {
         addComparisonProduct(response.data);
+        toast.success(`Started comparison tracking for "${productName.trim()}"!`);
         closeCompareModal();
       }
     } catch (err) {
       console.error('Error adding comparison:', err);
-      showAlert('Comparison Failed', err.response?.data?.error || 'Failed to initialize comparison tracker.');
+      toast.error(err.response?.data?.error || 'Failed to initialize comparison tracker.');
     } finally {
       setIsSubmitting(false);
     }

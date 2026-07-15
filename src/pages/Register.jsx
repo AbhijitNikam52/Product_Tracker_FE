@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useStore from '../store/useStore';
 import client from '../api/client';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { toast } from 'react-toastify';
 
 const Register = () => {
   const { login } = useStore();
@@ -19,17 +20,23 @@ const Register = () => {
     setError(null);
 
     if (!email || !password || !confirmPassword) {
-      setError('Please fill in all fields.');
+      const errMsg = 'Please fill in all fields.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      const errMsg = 'Password must be at least 6 characters long.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      const errMsg = 'Passwords do not match.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
@@ -42,10 +49,13 @@ const Register = () => {
 
       // Log in user on successful sign up
       login(response.data);
+      toast.success('Registration successful! Welcome to PriceDekho.');
       navigate('/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.error || 'Registration failed. Please check details.');
+      const errMsg = err.response?.data?.error || 'Registration failed. Please check details.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -49,11 +50,14 @@ const Profile = () => {
       });
 
       setProfileSuccess(true);
+      toast.success('Profile details updated successfully!');
       // Auto-hide success message after 4 seconds
       setTimeout(() => setProfileSuccess(false), 4000);
     } catch (err) {
       console.error('Profile update error:', err);
-      setProfileError(err.response?.data?.error || 'Failed to update profile settings.');
+      const errMsg = err.response?.data?.error || 'Failed to update profile settings.';
+      setProfileError(errMsg);
+      toast.error(errMsg);
     } finally {
       setProfileLoading(false);
     }
@@ -65,17 +69,23 @@ const Profile = () => {
     setPasswordSuccess(false);
 
     if (!oldPassword || !newPassword || !confirmPassword) {
-      setPasswordError('Please fill in all password fields.');
+      const errMsg = 'Please fill in all password fields.';
+      setPasswordError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
     if (newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters long.');
+      const errMsg = 'New password must be at least 6 characters long.';
+      setPasswordError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match.');
+      const errMsg = 'New passwords do not match.';
+      setPasswordError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
@@ -87,6 +97,7 @@ const Profile = () => {
       });
 
       setPasswordSuccess(true);
+      toast.success('Password changed successfully!');
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -94,7 +105,9 @@ const Profile = () => {
       setTimeout(() => setPasswordSuccess(false), 4000);
     } catch (err) {
       console.error('Password change error:', err);
-      setPasswordError(err.response?.data?.error || 'Failed to change password. Double check old password.');
+      const errMsg = err.response?.data?.error || 'Failed to change password. Double check old password.';
+      setPasswordError(errMsg);
+      toast.error(errMsg);
     } finally {
       setPasswordLoading(false);
     }

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { toast } from 'react-toastify';
 
 // Helper to safely parse stored user from localStorage
 const getInitialUser = () => {
@@ -55,6 +56,7 @@ const useStore = create((set, get) => ({
   logout: () => {
     localStorage.removeItem('pricedekho_user');
     set({ user: null, items: [], notifications: [], unreadCount: 0, cart: [] });
+    toast.success('Logged out successfully.');
   },
 
   // ITEMS SLICE
@@ -132,6 +134,9 @@ const useStore = create((set, get) => ({
       const updated = [...currentCart, { ...item, id: item.site + '_' + Date.now() }];
       localStorage.setItem(`pricedekho_cart_${userId}`, JSON.stringify(updated));
       set({ cart: updated });
+      toast.success('Added to cart!');
+    } else {
+      toast.info('Item is already in your cart.');
     }
   },
   removeFromCart: (id) => {
@@ -140,12 +145,14 @@ const useStore = create((set, get) => ({
     const updated = get().cart.filter(i => i.id !== id);
     localStorage.setItem(`pricedekho_cart_${userId}`, JSON.stringify(updated));
     set({ cart: updated });
+    toast.success('Removed from cart.');
   },
   clearCart: () => {
     const user = get().user;
     const userId = user ? user.userId : 'guest';
     localStorage.setItem(`pricedekho_cart_${userId}`, JSON.stringify([]));
     set({ cart: [] });
+    toast.success('Cart cleared.');
   },
 
   // SAVED PRODUCTS (HOME) SLICE

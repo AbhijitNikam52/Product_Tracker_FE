@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -55,9 +56,10 @@ const Coupons = () => {
       const updatedVerified = !coupon.isVerified;
       await client.post(`/api/coupons/${coupon._id}/verify`, { isVerified: updatedVerified });
       setCoupons(prev => prev.map(c => c._id === coupon._id ? { ...c, isVerified: updatedVerified } : c));
+      toast.success(updatedVerified ? 'Coupon verified successfully!' : 'Coupon verification removed.');
     } catch (err) {
       console.error('Error updating verification status:', err);
-      showAlert('Update Failed', err.response?.data?.error || 'Failed to update verification status.');
+      toast.error(err.response?.data?.error || 'Failed to update verification status.');
     }
   };
 
@@ -228,6 +230,7 @@ const Coupons = () => {
                           onClick={() => {
                             navigator.clipboard.writeText(coupon.code);
                             setCopiedCodeId(coupon._id);
+                            toast.success(`Coupon code "${coupon.code}" copied!`);
                             setTimeout(() => setCopiedCodeId(null), 2000);
                           }}
                           className="text-[10px] font-black text-ag-green hover:underline cursor-pointer focus:outline-none"
