@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
 import LoadingSpinner from './LoadingSpinner';
+import { toast } from 'react-toastify';
 
 const AddItemModal = () => {
   const { isAddModalOpen, closeAddModal, addItem, initialAddUrl } = useStore();
@@ -78,13 +79,16 @@ const AddItemModal = () => {
       
       // Add the created item to Zustand store
       addItem(response.data);
+      toast.success(`Started tracking "${response.data.productName || 'product'}"!`);
       
       // Reset state and close modal
       handleReset();
       closeAddModal();
     } catch (err) {
       console.error('Error starting tracker:', err);
-      setError(err.response?.data?.error || 'Failed to start tracking. Please try again.');
+      const errMsg = err.response?.data?.error || 'Failed to start tracking. Please try again.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsFetching(false);
     }

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useStore from '../store/useStore';
 import client from '../api/client';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { toast } from 'react-toastify';
 
 const Login = () => {
   const { login } = useStore();
@@ -18,7 +19,9 @@ const Login = () => {
     setError(null);
 
     if (!email || !password) {
-      setError('Please fill in all fields.');
+      const errMsg = 'Please fill in all fields.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
@@ -31,12 +34,15 @@ const Login = () => {
       
       // Store credentials via Zustand
       login(response.data);
+      toast.success(`Welcome back, ${response.data.user.name || response.data.user.email}!`);
       
       // Go to dashboard
       navigate('/dashboard');
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.error || 'Invalid email or password.');
+      const errMsg = err.response?.data?.error || 'Invalid email or password.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }

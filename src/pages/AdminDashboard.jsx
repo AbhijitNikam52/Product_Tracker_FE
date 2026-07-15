@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -24,11 +25,39 @@ import {
 
 const CHART_COLORS = ['#4F46E5', '#0D9488', '#10B981', '#F59E0B', '#EF4444'];
 
-const AdminDashboard = () => {
-  const { dialog, showConfirm, showAlert, closeDialog } = useStore();
+const STORES_CONFIG = {
+  amazon: { name: 'Amazon', bg: 'from-amber-500 to-yellow-600', text: 'text-white border-amber-600' },
+  flipkart: { name: 'Flipkart', bg: 'from-blue-600 to-indigo-700', text: 'text-white border-blue-700' },
+  myntra: { name: 'Myntra', bg: 'from-pink-500 to-rose-600', text: 'text-white border-pink-600' },
+  ajio: { name: 'Ajio', bg: 'from-teal-700 to-slate-800', text: 'text-white border-teal-800' },
+  croma: { name: 'Croma', bg: 'from-cyan-600 to-teal-700', text: 'text-white border-cyan-600' },
+  reliancedigital: { name: 'Reliance Digital', bg: 'from-red-500 to-orange-600', text: 'text-white border-red-600' },
+  vijaysales: { name: 'Vijay Sales', bg: 'from-red-700 to-rose-800', text: 'text-white border-rose-700' }
+};
 
-  // Tab State: 'overview' | 'users' | 'items' | 'comparisons' | 'coupons'
+const AdminDashboard = () => {
+  const {
+    dialog,
+    showConfirm,
+    showAlert,
+    closeDialog,
+    savedProducts,
+    setSavedProducts,
+    saveProduct,
+    removeSavedProduct
+  } = useStore();
+
+  // Tab State: 'overview' | 'users' | 'items' | 'comparisons' | 'coupons' | 'homeProducts'
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Home Products States
+  const [homeProductSearch, setHomeProductSearch] = useState('');
+  const [selectedHomeProductSite, setSelectedHomeProductSite] = useState('all');
+  const [showHomeProductModal, setShowHomeProductModal] = useState(false);
+  const [homeProductUrl, setHomeProductUrl] = useState('');
+  const [isFetchingHomeProduct, setIsFetchingHomeProduct] = useState(false);
+  const [fetchedHomeProduct, setFetchedHomeProduct] = useState(null);
+  const [fetchHomeProductError, setFetchHomeProductError] = useState(null);
 
   // Backend Data State
   const [dashboardData, setDashboardData] = useState(null);
@@ -119,6 +148,16 @@ const AdminDashboard = () => {
       setCouponsList(res.data);
     } catch (err) {
       console.error('Error fetching coupons:', err);
+    }
+  };
+
+  // Fetch Saved/Home Products
+  const fetchHomeProducts = async () => {
+    try {
+      const res = await client.get('/api/saved-products');
+      setSavedProducts(res.data);
+    } catch (err) {
+      console.error('Error fetching saved products:', err);
     }
   };
 
@@ -227,7 +266,8 @@ const AdminDashboard = () => {
         fetchUsers(), 
         fetchItems(),
         fetchComparisons(),
-        fetchCoupons()
+        fetchCoupons(),
+        fetchHomeProducts()
       ]);
       setPageLoading(false);
     };
@@ -237,6 +277,11 @@ const AdminDashboard = () => {
 
   // Show status feedback banners
   const triggerNotification = (msg, isError = false) => {
+    if (isError) {
+      toast.error(msg);
+    } else {
+      toast.success(msg);
+    }
     setActionMessage({ text: msg, isError });
     setTimeout(() => setActionMessage(null), 5000);
   };
@@ -375,7 +420,92 @@ const AdminDashboard = () => {
     }
   };
 
+  // Home Product Actions
+  const handleOpenHomeProductModal = () => {
+    setHomeProductUrl('');
+    setFetchedHomeProduct(null);
+    setFetchHomeProductError(null);
+    setIsFetchingHomeProduct(false);
+    setShowHomeProductModal(true);
+  };
+
+  const handleFetchHomeProductDetails = async (e) => {
+    if (e) e.preventDefault();
+    if (!homeProductUrl || !homeProductUrl.startsWith('http')) {
+      setFetchHomeProductError('Please provide a valid product URL starting with http/https');
+      return;
+    }
+
+    setIsFetchingHomeProduct(true);
+    setFetchHomeProductError(null);
+    setFetchedHomeProduct(null);
+
+    try {
+      const response = await client.post('/api/items', { url: homeProductUrl, targetPrice: 0 });
+      setFetchedHomeProduct(response.data);
+    } catch (err) {
+      console.error('Error fetching preview:', err);
+      setFetchHomeProductError(err.response?.data?.error || 'Could not fetch product details. Try another link.');
+    } finally {
+      setIsFetchingHomeProduct(false);
+    }
+  };
+
+  const handleAddHomeProduct = async () => {
+    if (!fetchedHomeProduct) return;
+    setActionInProgress(true);
+    try {
+      const payload = {
+        title: fetchedHomeProduct.productName,
+        imageUrl: fetchedHomeProduct.imageUrl,
+        price: fetchedHomeProduct.price,
+        rating: '',
+        productUrl: homeProductUrl,
+        site: fetchedHomeProduct.site
+      };
+
+      const res = await client.post('/api/saved-products', payload);
+      saveProduct(res.data);
+      triggerNotification('Product added to home page successfully.');
+      setShowHomeProductModal(false);
+    } catch (err) {
+      console.error('Error saving home product:', err);
+      triggerNotification(err.response?.data?.error || 'Failed to add product to home page.', true);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
+  const handleDeleteHomeProduct = (productObj) => {
+    showConfirm(
+      'Remove Product from Home Page?',
+      `Are you sure you want to remove "${productObj.title}" from the shared catalog on the home page?`,
+      async () => {
+        closeDialog();
+        setActionInProgress(true);
+        try {
+          await client.delete(`/api/saved-products/${productObj._id}`);
+          triggerNotification('Product removed from home page.');
+          removeSavedProduct(productObj._id);
+        } catch (err) {
+          console.error(err);
+          triggerNotification('Failed to remove product from home page.', true);
+        } finally {
+          setActionInProgress(false);
+        }
+      },
+      () => closeDialog()
+    );
+  };
+
   // Search/Filters calculations
+  const filteredHomeProducts = savedProducts.filter((prod) => {
+    const title = prod.title || '';
+    const matchesSearch = title.toLowerCase().includes(homeProductSearch.toLowerCase());
+    const matchesSite = selectedHomeProductSite === 'all' || prod.site === selectedHomeProductSite;
+    return matchesSearch && matchesSite;
+  });
+
   const filteredUsers = usersList.filter((u) => {
     const search = userSearch.toLowerCase();
     return (
@@ -517,17 +647,17 @@ const AdminDashboard = () => {
               </div>
               <div className="glass-card p-4 bg-ag-surface/20 border border-ag-border flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] font-bold text-ag-muted uppercase tracking-wider mb-0.5">Alerts Triggered</p>
-                  <h4 className="text-xl font-black text-ag-green">{metrics.alertsTriggered || 0}</h4>
+                  <p className="text-[9px] font-bold text-ag-muted uppercase tracking-wider mb-0.5">Total Coupons</p>
+                  <h4 className="text-xl font-black text-ag-green">{metrics.totalCoupons || couponsList.length || 0}</h4>
                 </div>
-                <span className="text-xl">🔔</span>
+                <span className="text-xl">🎟️</span>
               </div>
               <div className="glass-card p-4 bg-ag-surface/20 border border-ag-border flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] font-bold text-ag-muted uppercase tracking-wider mb-0.5">Alert Logs Sent</p>
-                  <h4 className="text-xl font-black text-ag-amber">{metrics.totalNotifications || 0}</h4>
+                  <p className="text-[9px] font-bold text-ag-muted uppercase tracking-wider mb-0.5">Home Products</p>
+                  <h4 className="text-xl font-black text-ag-amber">{metrics.totalSavedProducts || savedProducts.length || 0}</h4>
                 </div>
-                <span className="text-xl">⚡</span>
+                <span className="text-xl">🏠</span>
               </div>
             </div>
 
@@ -538,7 +668,8 @@ const AdminDashboard = () => {
                 { id: 'users', name: `Manage Users (${usersList.length})`, icon: '👥' },
                 { id: 'items', name: `Tracked Products (${itemsList.length})`, icon: '🏷️' },
                 { id: 'comparisons', name: `Compared Items (${comparisonsList.length})`, icon: '⚖️' },
-                { id: 'coupons', name: `Manage Coupons (${couponsList.length})`, icon: '🎟️' }
+                { id: 'coupons', name: `Manage Coupons (${couponsList.length})`, icon: '🎟️' },
+                { id: 'homeProducts', name: 'Add Home Products', icon: '🏠' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1407,6 +1538,26 @@ const AdminDashboard = () => {
               </div>
             )}
 
+            {/* TAB CONTENT 6: HOME PRODUCTS */}
+            {activeTab === 'homeProducts' && (
+              <div className="space-y-6 fade-in-up flex flex-col items-center justify-center py-16 text-center max-w-xl mx-auto">
+                <span className="text-5xl block animate-pulse">🏠</span>
+                <div className="space-y-2">
+                  <h3 className="font-extrabold text-lg text-ag-white">Home Page Product Catalog</h3>
+                  <p className="text-xs text-ag-muted leading-relaxed">
+                    Publish products directly to the main catalog on the home page. Paste a product URL from a supported store, fetch its details, and verify before pinning it to the homepage.
+                  </p>
+                </div>
+                <button
+                  onClick={handleOpenHomeProductModal}
+                  className="px-6 py-3 bg-ag-purple hover:bg-ag-violet rounded-xl text-xs font-black text-white transition-all cursor-pointer shadow-lg shadow-ag-purple/20 flex items-center space-x-2 animate-scale-up"
+                >
+                  <span>➕</span>
+                  <span>Add Product to Home Page</span>
+                </button>
+              </div>
+            )}
+
           </>
         )}
 
@@ -1625,6 +1776,127 @@ const AdminDashboard = () => {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Home Product Creation Modal */}
+      {showHomeProductModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-lg overflow-hidden border border-ag-border shadow-2xl animate-scale-up">
+            
+            <div className="px-6 py-4 border-b border-ag-border bg-ag-black/50 flex items-center justify-between">
+              <h3 className="font-extrabold text-sm text-ag-white">
+                Add Product to Home Catalog
+              </h3>
+              <button
+                onClick={() => {
+                  setShowHomeProductModal(false);
+                  setFetchedHomeProduct(null);
+                  setFetchHomeProductError(null);
+                }}
+                className="text-ag-muted hover:text-ag-white text-base focus:outline-none cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* URL Input and Fetch Button */}
+              <form onSubmit={handleFetchHomeProductDetails} className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-ag-muted uppercase tracking-wider block mb-1">
+                    Product Page URL
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={homeProductUrl}
+                      onChange={(e) => setHomeProductUrl(e.target.value)}
+                      placeholder="Paste Amazon, Flipkart, Myntra, Ajio URL..."
+                      className="flex-grow bg-ag-black border border-ag-border rounded-lg px-3 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
+                      required
+                      disabled={isFetchingHomeProduct}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isFetchingHomeProduct}
+                      className="px-4 py-2 bg-ag-purple hover:bg-ag-purple/90 disabled:bg-ag-purple/50 rounded-lg text-xs font-black text-white transition-all cursor-pointer flex items-center justify-center min-w-[90px]"
+                    >
+                      {isFetchingHomeProduct ? 'Fetching...' : 'Fetch Info'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Fetching status loader */}
+              {isFetchingHomeProduct && (
+                <div className="py-6 flex items-center justify-center">
+                  <LoadingSpinner size={24} label="Scraping product page..." />
+                </div>
+              )}
+
+              {/* Error feedback */}
+              {fetchHomeProductError && (
+                <div className="p-3 bg-ag-red/10 border border-ag-red/20 rounded-lg text-xs font-bold text-ag-red text-center">
+                  {fetchHomeProductError}
+                </div>
+              )}
+
+              {/* Fetched Product Details Preview */}
+              {fetchedHomeProduct && (
+                <div className="space-y-4 border border-ag-border bg-ag-black/30 p-4 rounded-xl">
+                  <div className="flex gap-3">
+                    {/* Product Image */}
+                    <div className="w-20 h-20 bg-ag-black/50 border border-ag-border rounded-lg flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0">
+                      {fetchedHomeProduct.imageUrl ? (
+                        <img
+                          src={fetchedHomeProduct.imageUrl}
+                          alt={fetchedHomeProduct.productName}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xl">📦</span>
+                      )}
+                    </div>
+
+                    {/* Product Meta */}
+                    <div className="space-y-1 flex-grow">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="inline-block bg-ag-purple/10 text-ag-purple border border-ag-purple/20 text-[9px] font-bold uppercase px-2 py-0.5 rounded">
+                          {fetchedHomeProduct.site}
+                        </span>
+                        <span className="text-xs font-black text-ag-green">
+                          {fetchedHomeProduct.price !== null ? `₹${fetchedHomeProduct.price.toLocaleString('en-IN')}` : 'Out of Stock'}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-ag-white line-clamp-2">
+                        {fetchedHomeProduct.productName}
+                      </h4>
+                    </div>
+                  </div>
+
+                  {/* Add to home page action */}
+                  <div className="pt-3 border-t border-ag-border/50 flex justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setShowHomeProductModal(false);
+                        setFetchedHomeProduct(null);
+                      }}
+                      className="px-4 py-2 border border-ag-border hover:border-ag-white rounded-lg text-xs font-bold text-ag-muted hover:text-ag-white transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddHomeProduct}
+                      className="px-5 py-2 bg-ag-green hover:bg-ag-green/90 rounded-lg text-xs font-black text-white transition-all cursor-pointer flex items-center space-x-1"
+                    >
+                      <span>✓ Add to Home Page</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

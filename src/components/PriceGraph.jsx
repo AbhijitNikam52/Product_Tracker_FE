@@ -16,7 +16,7 @@ import LoadingSpinner from './LoadingSpinner';
 
 const PriceGraph = () => {
   const { graphItemId, closeGraph, items } = useStore();
-  const [history, setHistory] = useState([]);
+  const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,7 +30,7 @@ const PriceGraph = () => {
       setError(null);
       try {
         const response = await client.get(`/api/prices/${graphItemId}/history`);
-        setHistory(response.data);
+        setData(response.data);
       } catch (err) {
         console.error('Error fetching price history:', err);
         setError(err.response?.data?.error || 'Failed to load price history.');
@@ -47,9 +47,33 @@ const PriceGraph = () => {
   const symbol = item.currency === 'USD' ? '$' : '₹';
 
   // Compute statistics from history
-  const prices = history.map((h) => h.price);
+  const historyList = data?.history || [];
+  const predictionsList = data?.predictions || [];
+  const recommendation = data?.recommendation || null;
+
+  const prices = historyList.map((h) => h.price);
   const minPrice = prices.length > 0 ? Math.min(...prices) : item.currentPrice;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : item.currentPrice;
+
+  // Combine history and predictions for Recharts
+  const chartData = [];
+  historyList.forEach((h, index) => {
+    const isLastHistory = index === historyList.length - 1;
+    chartData.push({
+      recordedAt: h.recordedAt,
+      price: h.price,
+      // Connect history to prediction at the last history point
+      predictedPrice: isLastHistory && predictionsList.length > 0 ? h.price : undefined
+    });
+  });
+
+  predictionsList.forEach((p) => {
+    chartData.push({
+      recordedAt: p.recordedAt,
+      price: undefined,
+      predictedPrice: p.predictedPrice
+    });
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
@@ -62,7 +86,7 @@ const PriceGraph = () => {
               {item.productName}
             </h3>
             <p className="text-xs text-ag-muted mt-0.5">
-              Price History & Target Threshold
+              Price Prediction & Purchase Advisor
             </p>
           </div>
           <button
@@ -78,7 +102,7 @@ const PriceGraph = () => {
         <div className="p-6">
           {isLoading ? (
             <div className="py-20 flex justify-center">
-              <LoadingSpinner label="Loading price history points..." />
+              <LoadingSpinner label="Analyzing price trend and loading predictions..." />
             </div>
           ) : error ? (
             <div className="py-12 text-center">
@@ -90,7 +114,7 @@ const PriceGraph = () => {
                 Close
               </button>
             </div>
-          ) : history.length === 0 ? (
+          ) : historyList.length === 0 ? (
             <div className="py-16 text-center">
               <p className="text-ag-muted text-sm mb-2">No historical data recorded yet.</p>
               <p className="text-xs text-ag-muted">Check back after the first scheduled refresh runs.</p>
@@ -100,15 +124,14 @@ const PriceGraph = () => {
               {/* Responsive Chart Container */}
               <div className="w-full h-72 mb-6">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={history} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2E" />
                     <XAxis
                       dataKey="recordedAt"
                       tickFormatter={(d) => {
                         try {
                           const date = new Date(d);
-                          const isToday = new Date().toDateString() === date.toDateString();
-                          return isToday ? format(date, 'h:mm a') : format(date, 'MMM d, h:mm a');
+                          return format(date, 'MMM d');
                         } catch (e) {
                           return d;
                         }
@@ -128,8 +151,17 @@ const PriceGraph = () => {
                         border: '1px solid #1E1E2E',
                         borderRadius: 12
                       }}
-                      formatter={(v) => [`${symbol}${v.toLocaleString()}`, 'Price']}
-                      labelFormatter={(l) => format(new Date(l), 'MMM d, yyyy h:mm a')}
+                      formatter={(v, name) => {
+                        const label = name === 'price' ? 'Actual Price' : 'Predicted Price';
+                        return [`${symbol}${v.toLocaleString()}`, label];
+                      }}
+                      labelFormatter={(l) => {
+                        try {
+                          return format(new Date(l), 'MMM d, yyyy h:mm a');
+                        } catch (e) {
+                          return l;
+                        }
+                      }}
                     />
                     {/* Dashed Target Price Line */}
                     <ReferenceLine
@@ -145,6 +177,7 @@ const PriceGraph = () => {
                       }}
                     />
                     <Line
+                      name="price"
                       type="monotone"
                       dataKey="price"
                       stroke="#A855F7"
@@ -152,9 +185,84 @@ const PriceGraph = () => {
                       dot={false}
                       activeDot={{ r: 5, fill: '#A855F7', stroke: '#12121A', strokeWidth: 2 }}
                     />
+                    <Line
+                      name="predictedPrice"
+                      type="monotone"
+                      dataKey="predictedPrice"
+                      stroke="#22D3EE"
+                      strokeWidth={2.5}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      activeDot={{ r: 5, fill: '#22D3EE', stroke: '#12121A', strokeWidth: 2 }}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* Purchase Advisor Card */}
+              {recommendation && (
+                <div className={`mb-6 p-4 rounded-2xl border transition-all duration-300 ${
+                  recommendation.decision === 'BUY'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                    : 'bg-amber-500/10 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.05)]'
+                }`}>
+                  <div className="flex items-start gap-4">
+                    {/* Icon Badge */}
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ${
+                      recommendation.decision === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'bg-amber-500/20 text-amber-400'
+                    }`}>
+                      {recommendation.decision === 'BUY' ? '🛒' : '⏳'}
+                    </div>
+
+                    {/* Message and Confidence */}
+                    <div className="flex-grow">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-black tracking-widest uppercase px-2.5 py-0.5 rounded-full ${
+                            recommendation.decision === 'BUY'
+                              ? 'bg-emerald-500/25 text-emerald-400 border border-emerald-500/35'
+                              : 'bg-amber-500/25 text-amber-400 border border-amber-500/35'
+                          }`}>
+                            {recommendation.decision === 'BUY' ? 'Buy Now' : 'Wait'}
+                          </span>
+                          <span className="text-[11px] text-ag-muted font-semibold">
+                            Expected change: <span className={recommendation.expectedChange < 0 ? 'text-ag-green' : recommendation.expectedChange > 0 ? 'text-ag-red' : 'text-ag-white'}>
+                              {recommendation.expectedChange < 0 ? '-' : recommendation.expectedChange > 0 ? '+' : ''}
+                              {symbol}{Math.abs(recommendation.expectedChange).toLocaleString()}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-ag-muted uppercase font-bold tracking-wider">
+                            Confidence:
+                          </span>
+                          <span className={`text-xs font-extrabold ${
+                            recommendation.decision === 'BUY' ? 'text-emerald-400' : 'text-amber-400'
+                          }`}>
+                            {recommendation.confidence}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-ag-white font-medium mt-2 leading-relaxed">
+                        {recommendation.message}
+                      </p>
+
+                      {/* Confidence Progress Bar */}
+                      <div className="w-full bg-ag-black/50 h-1.5 rounded-full mt-3 overflow-hidden border border-ag-border/30">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            recommendation.decision === 'BUY' ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}
+                          style={{ width: `${recommendation.confidence}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Price Stats Grid */}
               <div className="grid grid-cols-3 gap-3">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 const ProductCard = ({ item }) => {
   const { openGraph, updateItem, removeItem, showConfirm, showAlert } = useStore();
@@ -81,9 +82,10 @@ const ProductCard = ({ item }) => {
         try {
           await client.delete(`/api/items/${item._id}`);
           removeItem(item._id);
+          toast.success('Successfully stopped tracking product!');
         } catch (err) {
           console.error('Error deleting item:', err);
-          showAlert('Delete Failed', err.response?.data?.error || 'Failed to delete item.');
+          toast.error(err.response?.data?.error || 'Failed to delete item.');
         }
       }
     );
@@ -92,7 +94,7 @@ const ProductCard = ({ item }) => {
   const handleSaveTarget = async () => {
     const val = parseFloat(tempTargetPrice);
     if (isNaN(val) || val <= 0) {
-      showAlert('Invalid Price', 'Please enter a valid target price greater than 0.');
+      toast.error('Please enter a valid target price greater than 0.');
       return;
     }
     setIsSavingTarget(true);
@@ -101,10 +103,11 @@ const ProductCard = ({ item }) => {
       if (response.data) {
         updateItem(item._id, response.data);
         setIsEditingTarget(false);
+        toast.success('Target price updated successfully!');
       }
     } catch (err) {
       console.error('Error updating target price:', err);
-      showAlert('Update Failed', err.response?.data?.error || 'Failed to update target price.');
+      toast.error(err.response?.data?.error || 'Failed to update target price.');
     } finally {
       setIsSavingTarget(false);
     }
@@ -322,6 +325,7 @@ const ProductCard = ({ item }) => {
                           onClick={() => {
                             navigator.clipboard.writeText(coupon.code);
                             setCopiedCodeId(coupon._id);
+                            toast.success(`Coupon code "${coupon.code}" copied!`);
                             setTimeout(() => setCopiedCodeId(null), 2000);
                           }}
                           className="text-[9px] font-black text-ag-green hover:underline cursor-pointer focus:outline-none"

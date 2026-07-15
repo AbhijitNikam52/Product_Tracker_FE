@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -66,9 +67,10 @@ const SearchProduct = () => {
         site: product.site
       });
       saveProduct(res.data);
+      toast.success(`Product "${product.title || 'item'}" saved to catalog!`);
     } catch (err) {
       console.error('Error saving product to shared catalog:', err);
-      alert(err.response?.data?.error || 'Failed to save product.');
+      toast.error(err.response?.data?.error || 'Failed to save product.');
     }
   };
   const [isSearching, setIsSearching] = useState(false);
@@ -376,6 +378,7 @@ const SearchProduct = () => {
                                       onClick={() => {
                                         navigator.clipboard.writeText(coupon.code);
                                         setCopiedCodeId(coupon.code + '_' + idx);
+                                        toast.success(`Coupon code "${coupon.code}" copied!`);
                                         setTimeout(() => setCopiedCodeId(null), 2000);
                                       }}
                                       className="text-[9px] text-ag-green font-bold hover:underline cursor-pointer focus:outline-none"

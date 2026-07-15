@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useStore from './store/useStore';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Page Imports
 import Landing from './pages/Landing';
@@ -120,6 +122,7 @@ const App = () => {
         {/* Fallback Catch-All Route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ToastContainer position="top-right" autoClose={3000} theme="dark" />
     </BrowserRouter>
   );
 };

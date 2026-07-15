@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -55,9 +56,10 @@ const Home = () => {
     try {
       await client.delete(`/api/saved-products/${id}`);
       removeSavedProduct(id);
+      toast.success('Saved product removed from catalog.');
     } catch (err) {
       console.error('Error removing saved product:', err);
-      alert(err.response?.data?.error || 'Failed to remove saved product.');
+      toast.error(err.response?.data?.error || 'Failed to remove saved product.');
     }
   };
 
