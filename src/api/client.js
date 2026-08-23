@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Fetch base URL from Vite environment or default to local port 4000
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Fetch base URL from Vite environment variables or default to localhost:4000
+const API_URL = import.meta.env.VITE_BACKEND_API_URL;
 
 const client = axios.create({
   baseURL: API_URL,
