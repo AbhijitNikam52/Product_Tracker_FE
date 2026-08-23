@@ -43,8 +43,17 @@ const AdminDashboard = () => {
     removeSavedProduct
   } = useStore();
 
-  // Tab State: 'overview' | 'users' | 'items' | 'comparisons' | 'homeProducts'
+  // Tab State: 'overview' | 'users' | 'items' | 'comparisons' | 'homeProducts' | 'syncAudit'
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Realtime Price Sync & Audit States
+  const [syncReportsList, setSyncReportsList] = useState([]);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncProgressMsg, setSyncProgressMsg] = useState('');
+  const [selectedReportModal, setSelectedReportModal] = useState(null);
+  const [isFetchingReportModal, setIsFetchingReportModal] = useState(false);
+  const [logSearchTerm, setLogSearchTerm] = useState('');
+  const [logFilterType, setLogFilterType] = useState('ALL');
 
   // Home Products States
   const [homeProductSearch, setHomeProductSearch] = useState('');
@@ -139,6 +148,16 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch Sync Reports History
+  const fetchSyncReports = async () => {
+    try {
+      const res = await client.get('/api/admin/sync-reports');
+      setSyncReportsList(res.data);
+    } catch (err) {
+      console.error('Error fetching sync reports:', err);
+    }
+  };
+
   // Initial Load
   useEffect(() => {
     const loadAllData = async () => {
@@ -149,7 +168,8 @@ const AdminDashboard = () => {
         fetchUsers(), 
         fetchItems(),
         fetchComparisons(),
-        fetchHomeProducts()
+        fetchHomeProducts(),
+        fetchSyncReports()
       ]);
       setPageLoading(false);
     };
@@ -201,6 +221,72 @@ const AdminDashboard = () => {
           triggerNotification(err.response?.data?.error || 'Failed to delete user.', true);
         } finally {
           setActionInProgress(false);
+        }
+      },
+      () => closeDialog()
+    );
+  };
+
+  // Bulk Price Scraper Sync Actions
+  const handleRunLiveBulkSync = async () => {
+    showConfirm(
+      'Run Realtime Bulk Price Sync?',
+      `This will scrape live product pages for all ${itemsList.length} tracked items, update changed prices (e.g. ₹300 ➔ ₹280), update stock availability, and save a full execution audit report. Proceed now?`,
+      async () => {
+        closeDialog();
+        setIsSyncingAll(true);
+        setSyncProgressMsg(`Scraping all ${itemsList.length} product pages in real-time...`);
+        try {
+          const res = await client.post('/api/admin/sync-all');
+          triggerNotification(res.data.message || 'Live bulk price sync completed!');
+          await Promise.all([
+            fetchSyncReports(),
+            fetchItems(),
+            fetchDashboardStats()
+          ]);
+          if (res.data.report?._id) {
+            handleViewReportDetails(res.data.report._id);
+          }
+        } catch (err) {
+          console.error('Error during bulk price sync:', err);
+          triggerNotification(err.response?.data?.error || 'Live bulk sync failed.', true);
+        } finally {
+          setIsSyncingAll(false);
+          setSyncProgressMsg('');
+        }
+      },
+      () => closeDialog()
+    );
+  };
+
+  const handleViewReportDetails = async (reportId) => {
+    setIsFetchingReportModal(true);
+    setLogSearchTerm('');
+    setLogFilterType('ALL');
+    try {
+      const res = await client.get(`/api/admin/sync-reports/${reportId}`);
+      setSelectedReportModal(res.data);
+    } catch (err) {
+      console.error('Error fetching report details:', err);
+      triggerNotification('Failed to load report console logs.', true);
+    } finally {
+      setIsFetchingReportModal(false);
+    }
+  };
+
+  const handleDeleteSyncReport = (report) => {
+    showConfirm(
+      'Delete Sync Report Log?',
+      `Are you sure you want to delete report log from ${new Date(report.startedAt).toLocaleString()}?`,
+      async () => {
+        closeDialog();
+        try {
+          await client.delete(`/api/admin/sync-reports/${report._id}`);
+          setSyncReportsList(prev => prev.filter(r => r._id !== report._id));
+          triggerNotification('Sync report log deleted.');
+        } catch (err) {
+          console.error(err);
+          triggerNotification('Failed to delete sync report log.', true);
         }
       },
       () => closeDialog()
@@ -550,7 +636,8 @@ const AdminDashboard = () => {
                 { id: 'users', name: `Manage Users (${usersList.length})`, icon: '👥' },
                 { id: 'items', name: `Tracked Products (${itemsList.length})`, icon: '🏷️' },
                 { id: 'comparisons', name: `Compared Items (${comparisonsList.length})`, icon: '⚖️' },
-                { id: 'homeProducts', name: 'Add Home Products', icon: '🏠' }
+                { id: 'homeProducts', name: 'Add Home Products', icon: '🏠' },
+                { id: 'syncAudit', name: `Realtime Price Sync & Audit (${syncReportsList.length})`, icon: '⚡' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1218,10 +1305,370 @@ const AdminDashboard = () => {
               </div>
             )}
 
+            {/* TAB CONTENT 7: REALTIME PRICE SYNC & AUDIT */}
+            {activeTab === 'syncAudit' && (
+              <div className="space-y-6 fade-in-up">
+                
+                {/* Realtime Sync Action Box */}
+                <div className="glass-card p-6 bg-gradient-to-r from-ag-surface/40 via-ag-purple/10 to-ag-surface/40 border border-ag-purple/30 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-ag-purple/5">
+                  <div className="space-y-2 text-left max-w-2xl">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-2xl">⚡</span>
+                      <h3 className="text-base font-black text-ag-white">Realtime Bulk Scraper Sync Engine</h3>
+                      <span className="bg-ag-purple/20 text-ag-purple border border-ag-purple/30 text-[9px] font-black uppercase px-2 py-0.5 rounded">
+                        Live Auto-Update
+                      </span>
+                    </div>
+                    <p className="text-xs text-ag-muted leading-relaxed font-medium">
+                      Trigger an automated real-time web scrape across all <strong className="text-ag-white">{itemsList.length} tracked products</strong> in your database. 
+                      If a product's price changed (e.g. from <span className="text-ag-white font-bold">₹300 ➔ ₹280</span>), it updates the database, creates historical price points, updates stock availability, and triggers user alerts. Generates an inspection report with full console execution logs.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleRunLiveBulkSync}
+                    disabled={isSyncingAll || actionInProgress || itemsList.length === 0}
+                    className="px-6 py-3.5 bg-ag-purple hover:bg-ag-violet disabled:bg-ag-purple/50 rounded-xl text-xs font-black text-white transition-all cursor-pointer shadow-lg shadow-ag-purple/20 flex items-center space-x-2.5 flex-shrink-0 animate-scale-up disabled:cursor-not-allowed"
+                  >
+                    {isSyncingAll ? (
+                      <>
+                        <span className="animate-spin text-sm">🌀</span>
+                        <span>Syncing {itemsList.length} Products...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>⚡</span>
+                        <span>Run Live Bulk Price Sync Now</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Sync Progress Indicator */}
+                {isSyncingAll && (
+                  <div className="p-4 bg-ag-purple/10 border border-ag-purple/30 rounded-xl flex items-center justify-center space-x-3 text-xs font-bold text-ag-purple animate-pulse">
+                    <span className="animate-spin text-sm">🌀</span>
+                    <span>{syncProgressMsg || 'Scraping live product pages and updating price changes... Please keep window open.'}</span>
+                  </div>
+                )}
+
+                {/* Audit Execution Reports History Table */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-ag-white">Execution Audit Reports History</h4>
+                      <p className="text-[11px] text-ag-muted font-medium">
+                        Chronological record of all bulk scraper sync runs with console log inspect options.
+                      </p>
+                    </div>
+                    <button
+                      onClick={fetchSyncReports}
+                      className="px-3 py-1.5 bg-ag-surface border border-ag-border hover:border-ag-purple rounded-lg text-xs font-bold text-ag-white transition-all cursor-pointer flex items-center space-x-1"
+                    >
+                      <span>🔄</span>
+                      <span>Refresh Reports</span>
+                    </button>
+                  </div>
+
+                  <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border rounded-xl">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse min-w-[950px]">
+                        <thead>
+                          <tr className="bg-ag-black/50 border-b border-ag-border text-[10px] font-black text-ag-muted uppercase tracking-wider">
+                            <th className="px-6 py-4">Execution Timestamp</th>
+                            <th className="px-6 py-4">Triggered By</th>
+                            <th className="px-6 py-4">Duration</th>
+                            <th className="px-6 py-4 text-center">Products Checked</th>
+                            <th className="px-6 py-4 text-center">Price Changes</th>
+                            <th className="px-6 py-4 text-center">Stock / Errors</th>
+                            <th className="px-6 py-4 text-right">Audit Console Logs</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-ag-border/50 text-xs">
+                          {syncReportsList.length === 0 ? (
+                            <tr>
+                              <td colSpan="7" className="px-6 py-12 text-center text-ag-muted font-bold">
+                                No sync execution reports found yet. Click "Run Live Bulk Price Sync Now" to generate the first report.
+                              </td>
+                            </tr>
+                          ) : (
+                            syncReportsList.map((report) => (
+                              <tr key={report._id} className="hover:bg-ag-surface/10 transition-colors">
+                                
+                                {/* Timestamp */}
+                                <td className="px-6 py-4">
+                                  <div className="font-bold text-ag-white">
+                                    {new Date(report.startedAt).toLocaleString()}
+                                  </div>
+                                  <span className="text-[10px] text-ag-muted font-mono block mt-0.5">
+                                    ID: {report._id}
+                                  </span>
+                                </td>
+
+                                {/* Triggered By */}
+                                <td className="px-6 py-4 font-semibold text-ag-muted whitespace-nowrap">
+                                  {report.triggeredBy || 'Admin'}
+                                </td>
+
+                                {/* Duration */}
+                                <td className="px-6 py-4 font-mono font-bold text-ag-purple whitespace-nowrap">
+                                  {report.durationMs ? `${(report.durationMs / 1000).toFixed(1)}s` : 'N/A'}
+                                </td>
+
+                                {/* Total Products */}
+                                <td className="px-6 py-4 text-center font-black text-ag-white">
+                                  {report.summary?.totalProducts || 0}
+                                </td>
+
+                                {/* Price Changes (Updated Count) */}
+                                <td className="px-6 py-4 text-center whitespace-nowrap">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                                    (report.summary?.updatedCount || 0) > 0
+                                      ? 'bg-ag-green/20 text-ag-green border border-ag-green/30'
+                                      : 'bg-ag-surface text-ag-muted border border-ag-border'
+                                  }`}>
+                                    {report.summary?.updatedCount || 0} Updated
+                                  </span>
+                                </td>
+
+                                {/* Stock / Errors */}
+                                <td className="px-6 py-4 text-center space-x-1.5 whitespace-nowrap">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                    {report.summary?.unavailableCount || 0} Stock
+                                  </span>
+                                  {(report.summary?.failedCount || 0) > 0 && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-ag-red/10 text-ag-red border border-ag-red/20">
+                                      {report.summary?.failedCount} Errors
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Action Buttons */}
+                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                  <button
+                                    onClick={() => handleViewReportDetails(report._id)}
+                                    disabled={isFetchingReportModal}
+                                    className="px-3 py-1.5 rounded-lg bg-ag-purple/10 border border-ag-purple/30 hover:bg-ag-purple/20 text-ag-purple text-[10px] font-black transition-all cursor-pointer flex items-center space-x-1 inline-flex"
+                                  >
+                                    <span>👁️</span>
+                                    <span>View Execution Report</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSyncReport(report)}
+                                    className="px-2.5 py-1.5 rounded-lg border border-ag-border hover:border-ag-red hover:bg-ag-red/5 text-[10px] font-bold text-ag-red transition-all cursor-pointer inline-flex"
+                                    title="Delete report log"
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
           </>
         )}
 
       </div>
+
+      {/* Terminal Console Log Modal for Sync Execution Reports */}
+      {selectedReportModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl bg-[#090D16] border border-[#1E293B] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
+            
+            {/* High-tech Console Header */}
+            <div className="px-6 py-4 bg-[#0F172A] border-b border-[#1E293B] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                {/* Mac OS dot buttons */}
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500/80 block"></span>
+                  <span className="w-3 h-3 rounded-full bg-yellow-500/80 block"></span>
+                  <span className="w-3 h-3 rounded-full bg-green-500/80 block"></span>
+                </div>
+                <div>
+                  <h3 className="font-mono font-extrabold text-xs text-ag-white flex items-center space-x-2">
+                    <span className="text-ag-green font-bold">root@pricedekho-scraper-audit:~#</span>
+                    <span>Execution_Log_{new Date(selectedReportModal.startedAt).toISOString().split('T')[0]}.log</span>
+                  </h3>
+                  <p className="text-[10px] font-mono text-ag-muted mt-0.5">
+                    Executed on {new Date(selectedReportModal.startedAt).toLocaleString()} ({((selectedReportModal.durationMs || 0) / 1000).toFixed(1)}s duration)
+                  </p>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setSelectedReportModal(null)}
+                className="text-ag-muted hover:text-ag-white text-base focus:outline-none cursor-pointer self-end sm:self-auto"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Summary Bar */}
+            <div className="px-6 py-2.5 bg-[#0C121E] border-b border-[#1E293B] flex flex-wrap items-center justify-between text-[11px] font-mono text-ag-muted gap-2">
+              <div className="flex flex-wrap gap-4">
+                <span>Total Checked: <strong className="text-ag-white">{selectedReportModal.summary?.totalProducts || 0}</strong></span>
+                <span className="text-ag-green font-bold">Updated/Changed: <strong>{selectedReportModal.summary?.updatedCount || 0}</strong></span>
+                <span className="text-ag-purple">Unchanged: <strong>{selectedReportModal.summary?.unchangedCount || 0}</strong></span>
+                <span className="text-amber-400">Out of Stock: <strong>{selectedReportModal.summary?.unavailableCount || 0}</strong></span>
+                <span className="text-ag-red">Errors: <strong>{selectedReportModal.summary?.failedCount || 0}</strong></span>
+              </div>
+
+              {/* Filter pills */}
+              <div className="flex items-center space-x-1">
+                {['ALL', 'PRICE_DROP', 'PRICE_RISE', 'UNCHANGED', 'UNAVAILABLE', 'ERROR'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setLogFilterType(type)}
+                    className={`px-2 py-0.5 rounded text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      logFilterType === type 
+                        ? 'bg-ag-purple text-white' 
+                        : 'bg-[#162032] text-ag-muted hover:text-white'
+                    }`}
+                  >
+                    {type.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Search Filter Bar */}
+            <div className="px-6 py-2 bg-[#090D16] border-b border-[#1E293B]">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ag-muted text-xs font-mono">🔎</span>
+                <input
+                  type="text"
+                  value={logSearchTerm}
+                  onChange={(e) => setLogSearchTerm(e.target.value)}
+                  placeholder="Filter console log lines by product title, store, or price..."
+                  className="w-full bg-[#0F172A] border border-[#1E293B] rounded-lg pl-9 pr-4 py-1.5 text-xs font-mono text-ag-white focus:outline-none focus:border-ag-purple"
+                />
+              </div>
+            </div>
+
+            {/* Terminal Console Output Box */}
+            <div className="p-6 bg-[#060911] overflow-y-auto font-mono text-xs space-y-2 flex-grow max-h-[60vh] leading-relaxed">
+              {(() => {
+                const logs = selectedReportModal.logs || [];
+                const search = logSearchTerm.toLowerCase().trim();
+
+                const filteredLogs = logs.filter((log) => {
+                  const matchesSearch = !search ||
+                    (log.productName || '').toLowerCase().includes(search) ||
+                    (log.site || '').toLowerCase().includes(search) ||
+                    (log.changeDetails || '').toLowerCase().includes(search);
+                  
+                  const matchesType = logFilterType === 'ALL' || log.logType === logFilterType;
+
+                  return matchesSearch && matchesType;
+                });
+
+                if (filteredLogs.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-ag-muted italic">
+                      No console log entries match current filter criteria.
+                    </div>
+                  );
+                }
+
+                return filteredLogs.map((log, idx) => {
+                  let badgeBg = 'bg-gray-500/10 text-gray-400 border-gray-500/30';
+                  let badgeLabel = 'INFO';
+                  let linePrefix = '🔵';
+
+                  if (log.logType === 'PRICE_DROP') {
+                    badgeBg = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-black';
+                    badgeLabel = '🟢 PRICE DROPPED';
+                    linePrefix = '📉';
+                  } else if (log.logType === 'PRICE_RISE') {
+                    badgeBg = 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-black';
+                    badgeLabel = '🟡 PRICE INCREASED';
+                    linePrefix = '📈';
+                  } else if (log.logType === 'UNAVAILABLE') {
+                    badgeBg = 'bg-orange-500/20 text-orange-400 border-orange-500/40 font-black';
+                    badgeLabel = '🟠 OUT OF STOCK';
+                    linePrefix = '📦';
+                  } else if (log.logType === 'ERROR') {
+                    badgeBg = 'bg-rose-500/20 text-rose-400 border-rose-500/40 font-black';
+                    badgeLabel = '🔴 SCRAPE ERROR';
+                    linePrefix = '❌';
+                  } else if (log.logType === 'UNCHANGED') {
+                    badgeBg = 'bg-purple-500/10 text-ag-purple border-ag-purple/30 font-bold';
+                    badgeLabel = '🔵 UNCHANGED';
+                    linePrefix = '✓';
+                  }
+
+                  const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '';
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className="p-3 bg-[#0B0F19] hover:bg-[#0E1524] border border-[#1E293B]/70 rounded-xl transition-colors space-y-1.5 text-[11px]"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-ag-muted text-[10px] font-mono">[{timeStr}]</span>
+                          <span className={`px-2 py-0.5 rounded border text-[9px] font-mono uppercase ${badgeBg}`}>
+                            {badgeLabel}
+                          </span>
+                          <span className="uppercase text-[9px] font-black tracking-wide text-ag-purple bg-ag-purple/10 px-1.5 py-0.5 rounded border border-ag-purple/20">
+                            {log.site}
+                          </span>
+                        </div>
+                        
+                        <a 
+                          href={log.productUrl} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-[10px] text-ag-purple hover:underline font-mono"
+                        >
+                          View Site Page ↗
+                        </a>
+                      </div>
+
+                      <div className="text-ag-white font-bold flex items-start space-x-1.5">
+                        <span className="text-xs">{linePrefix}</span>
+                        <span className="leading-snug">{log.productName}</span>
+                      </div>
+
+                      <div className={`text-[11px] font-mono font-semibold ${
+                        log.logType === 'PRICE_DROP' ? 'text-emerald-400' :
+                        log.logType === 'PRICE_RISE' ? 'text-amber-400' :
+                        log.logType === 'ERROR' ? 'text-rose-400' : 'text-ag-muted'
+                      }`}>
+                        {log.changeDetails}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 bg-[#0F172A] border-t border-[#1E293B] flex justify-between items-center text-xs font-mono">
+              <span className="text-ag-muted text-[11px]">
+                Showing {selectedReportModal.logs?.length || 0} detailed execution line records.
+              </span>
+              <button
+                onClick={() => setSelectedReportModal(null)}
+                className="px-4 py-1.5 bg-[#1E293B] hover:bg-[#334155] text-white font-bold rounded-lg transition-all cursor-pointer"
+              >
+                Close Console Report
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
 
 
