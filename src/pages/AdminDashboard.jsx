@@ -8,18 +8,15 @@ import Sidebar from '../components/Sidebar';
 import AlertBanner from '../components/AlertBanner';
 import LoadingSpinner from '../components/LoadingSpinner';
 import CustomPopup from '../components/CustomPopup';
+import Pagination from '../components/Pagination';
 
 // Recharts imports for premium analytics graphs
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
   PieChart,
   Pie,
   Cell,
+  Tooltip,
   Legend
 } from 'recharts';
 
@@ -39,7 +36,6 @@ const AdminDashboard = () => {
   const {
     dialog,
     showConfirm,
-    showAlert,
     closeDialog,
     savedProducts,
     setSavedProducts,
@@ -81,6 +77,25 @@ const AdminDashboard = () => {
   const [selectedCouponType, setSelectedCouponType] = useState('all');
   const [selectedCouponStore, setSelectedCouponStore] = useState('all');
   const [selectedCouponSource, setSelectedCouponSource] = useState('all');
+
+  // Pagination State for Each Tab (Default 10 records per page)
+  const [userPage, setUserPage] = useState(1);
+  const [userItemsPerPage, setUserItemsPerPage] = useState(10);
+
+  const [itemPage, setItemPage] = useState(1);
+  const [itemItemsPerPage, setItemItemsPerPage] = useState(10);
+
+  const [comparePage, setComparePage] = useState(1);
+  const [compareItemsPerPage, setCompareItemsPerPage] = useState(10);
+
+  const [couponPage, setCouponPage] = useState(1);
+  const [couponItemsPerPage, setCouponItemsPerPage] = useState(10);
+
+  // Auto Reset Page on Filter/Search Change
+  useEffect(() => setUserPage(1), [userSearch]);
+  useEffect(() => setItemPage(1), [itemSearch, selectedSite]);
+  useEffect(() => setComparePage(1), [compareSearch]);
+  useEffect(() => setCouponPage(1), [couponSearch, selectedCouponStore, selectedCouponType, selectedCouponSource]);
 
   // Coupon Form Modal State
   const [showCouponModal, setShowCouponModal] = useState(false);
@@ -172,12 +187,10 @@ const AdminDashboard = () => {
       };
 
       if (editingCoupon) {
-        // Edit existing
         const res = await client.put(`/api/admin/coupons/${editingCoupon._id}`, payload);
         setCouponsList(prev => prev.map(c => c._id === editingCoupon._id ? res.data : c));
         triggerNotification('Coupon updated successfully.');
       } else {
-        // Create new
         const res = await client.post('/api/admin/coupons', payload);
         setCouponsList(prev => [res.data, ...prev]);
         triggerNotification('Coupon created successfully.');
@@ -476,76 +489,108 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteHomeProduct = (productObj) => {
-    showConfirm(
-      'Remove Product from Home Page?',
-      `Are you sure you want to remove "${productObj.title}" from the shared catalog on the home page?`,
-      async () => {
-        closeDialog();
-        setActionInProgress(true);
-        try {
-          await client.delete(`/api/saved-products/${productObj._id}`);
-          triggerNotification('Product removed from home page.');
-          removeSavedProduct(productObj._id);
-        } catch (err) {
-          console.error(err);
-          triggerNotification('Failed to remove product from home page.', true);
-        } finally {
-          setActionInProgress(false);
-        }
-      },
-      () => closeDialog()
-    );
-  };
-
-  // Search/Filters calculations
+  // Full Database Search & Filter Calculations Across Whole Database
   const filteredHomeProducts = savedProducts.filter((prod) => {
     const title = prod.title || '';
-    const matchesSearch = title.toLowerCase().includes(homeProductSearch.toLowerCase());
+    const matchesSearch = title.toLowerCase().includes(homeProductSearch.toLowerCase().trim());
     const matchesSite = selectedHomeProductSite === 'all' || prod.site === selectedHomeProductSite;
     return matchesSearch && matchesSite;
   });
 
   const filteredUsers = usersList.filter((u) => {
-    const search = userSearch.toLowerCase();
+    const search = userSearch.toLowerCase().trim();
+    if (!search) return true;
     return (
       (u.email || '').toLowerCase().includes(search) ||
       (u.name || '').toLowerCase().includes(search) ||
+      (u.phone || '').toLowerCase().includes(search) ||
+      (u.role || '').toLowerCase().includes(search) ||
       (u._id || '').toLowerCase().includes(search)
     );
   });
 
   const filteredItems = itemsList.filter((item) => {
-    const matchesSearch = 
-      (item.productName || '').toLowerCase().includes(itemSearch.toLowerCase()) ||
-      (item.ownerEmail || '').toLowerCase().includes(itemSearch.toLowerCase()) ||
-      (item.url || '').toLowerCase().includes(itemSearch.toLowerCase());
+    const search = itemSearch.toLowerCase().trim();
+    const matchesSearch = !search || 
+      (item.productName || '').toLowerCase().includes(search) ||
+      (item.ownerEmail || '').toLowerCase().includes(search) ||
+      (item.ownerName || '').toLowerCase().includes(search) ||
+      (item.site || '').toLowerCase().includes(search) ||
+      (item._id || '').toLowerCase().includes(search) ||
+      (item.url || '').toLowerCase().includes(search);
     const matchesSite = selectedSite === 'all' || item.site === selectedSite;
     return matchesSearch && matchesSite;
   });
 
   const filteredComparisons = comparisonsList.filter((c) => {
-    const search = compareSearch.toLowerCase();
+    const search = compareSearch.toLowerCase().trim();
+    if (!search) return true;
+    const linksMatch = (c.links || []).some(link => 
+      (link.url || '').toLowerCase().includes(search) ||
+      (link.site || '').toLowerCase().includes(search)
+    );
     return (
       (c.productName || '').toLowerCase().includes(search) ||
-      (c.ownerEmail || '').toLowerCase().includes(search)
+      (c.ownerEmail || '').toLowerCase().includes(search) ||
+      (c.ownerName || '').toLowerCase().includes(search) ||
+      (c._id || '').toLowerCase().includes(search) ||
+      linksMatch
     );
   });
 
-  // Calculate stats values safely
+  const filteredCoupons = couponsList.filter(c => {
+    const search = couponSearch.toLowerCase().trim();
+    const queryMatch = !search || 
+      (c.code || '').toLowerCase().includes(search) || 
+      (c.description || '').toLowerCase().includes(search) ||
+      (c.store || '').toLowerCase().includes(search) ||
+      (c.couponType || '').toLowerCase().includes(search) ||
+      (c.brand || '').toLowerCase().includes(search) ||
+      (c.category || '').toLowerCase().includes(search) ||
+      (c.source || '').toLowerCase().includes(search);
+
+    const storeMatch = selectedCouponStore === 'all' || c.store === selectedCouponStore;
+    const typeMatch = selectedCouponType === 'all' || c.couponType === selectedCouponType;
+    const sourceMatch = selectedCouponSource === 'all' || c.source === selectedCouponSource;
+    return queryMatch && storeMatch && typeMatch && sourceMatch;
+  });
+
+  // Calculate safe page bounds synchronously to prevent out-of-bounds search results
+  const safeUserPage = Math.min(userPage, Math.max(1, Math.ceil(filteredUsers.length / userItemsPerPage)));
+  const paginatedUsers = filteredUsers.slice(
+    (safeUserPage - 1) * userItemsPerPage,
+    safeUserPage * userItemsPerPage
+  );
+
+  const safeItemPage = Math.min(itemPage, Math.max(1, Math.ceil(filteredItems.length / itemItemsPerPage)));
+  const paginatedItems = filteredItems.slice(
+    (safeItemPage - 1) * itemItemsPerPage,
+    safeItemPage * itemItemsPerPage
+  );
+
+  const safeComparePage = Math.min(comparePage, Math.max(1, Math.ceil(filteredComparisons.length / compareItemsPerPage)));
+  const paginatedComparisons = filteredComparisons.slice(
+    (safeComparePage - 1) * compareItemsPerPage,
+    safeComparePage * compareItemsPerPage
+  );
+
+  const safeCouponPage = Math.min(couponPage, Math.max(1, Math.ceil(filteredCoupons.length / couponItemsPerPage)));
+  const paginatedCoupons = filteredCoupons.slice(
+    (safeCouponPage - 1) * couponItemsPerPage,
+    safeCouponPage * couponItemsPerPage
+  );
+
+  // Stats calculation
   const metrics = dashboardData?.metrics || {};
   const siteStats = dashboardData?.siteStats || {};
   const categoryStats = dashboardData?.categoryStats || {};
-  const topSearches = dashboardData?.topSearches || [];
   const sysInfo = dashboardData?.systemInfo || {};
 
-  // Formatter for Recharts Category Pie Chart
   const categoryChartData = Object.entries(categoryStats).map(([name, value]) => ({
     name,
     value
   })).filter(item => item.value > 0);
 
-  // Formatter for Recharts Retailer Share Pie Chart
   const retailerChartData = Object.entries(siteStats).map(([name, value]) => ({
     name: name.toUpperCase(),
     value
@@ -579,13 +624,14 @@ const AdminDashboard = () => {
                   fetchDashboardStats(), 
                   fetchUsers(), 
                   fetchItems(),
-                  fetchComparisons()
+                  fetchComparisons(),
+                  fetchCoupons()
                 ]);
                 setPageLoading(false);
                 triggerNotification('Console records synchronized.');
               }}
               disabled={pageLoading || actionInProgress}
-              className="px-4 py-2.5 bg-ag-surface border border-ag-border rounded-xl text-xs font-bold text-ag-white hover:border-ag-purple transition-all flex items-center space-x-1.5 disabled:opacity-50"
+              className="px-4 py-2.5 bg-ag-surface border border-ag-border rounded-xl text-xs font-bold text-ag-white hover:border-ag-purple transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
             >
               <span>🔄</span>
               <span>Sync Console</span>
@@ -601,7 +647,7 @@ const AdminDashboard = () => {
               : 'bg-ag-green/10 border-ag-green text-ag-green'
           }`}>
             <span>{actionMessage.isError ? '⚠️' : '✓'} {actionMessage.text}</span>
-            <button onClick={() => setActionMessage(null)} className="text-ag-muted hover:text-white ml-2">✕</button>
+            <button onClick={() => setActionMessage(null)} className="text-ag-muted hover:text-white ml-2 cursor-pointer">✕</button>
           </div>
         )}
 
@@ -674,7 +720,7 @@ const AdminDashboard = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-xs font-black transition-all border-b-2 flex items-center space-x-1.5 -mb-px whitespace-nowrap ${
+                  className={`px-4 py-3 text-xs font-black transition-all border-b-2 flex items-center space-x-1.5 -mb-px whitespace-nowrap cursor-pointer ${
                     activeTab === tab.id
                       ? 'border-ag-purple text-ag-purple'
                       : 'border-transparent text-ag-muted hover:text-ag-white'
@@ -877,16 +923,19 @@ const AdminDashboard = () => {
                   <input
                     type="text"
                     value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
-                    placeholder="Search users by email, name, or database ID..."
+                    onChange={(e) => {
+                      setUserSearch(e.target.value);
+                      setUserPage(1);
+                    }}
+                    placeholder="Search users by email, name, phone, or database ID..."
                     className="w-full bg-ag-surface/55 border border-ag-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple focus:ring-1 focus:ring-ag-purple transition-all"
                   />
                 </div>
 
                 {/* Table Container */}
-                <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border">
+                <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border rounded-xl">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse min-w-[900px]">
                       <thead>
                         <tr className="bg-ag-black/50 border-b border-ag-border text-[10px] font-black text-ag-muted uppercase tracking-wider">
                           <th className="px-6 py-4">User Details</th>
@@ -899,19 +948,19 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ag-border/50 text-xs">
-                        {filteredUsers.length === 0 ? (
+                        {paginatedUsers.length === 0 ? (
                           <tr>
                             <td colSpan="7" className="px-6 py-12 text-center text-ag-muted font-bold">
-                              No users match search criterion.
+                              No users match search criterion in entire database.
                             </td>
                           </tr>
                         ) : (
-                          filteredUsers.map((user) => (
+                          paginatedUsers.map((user) => (
                             <tr key={user._id} className="hover:bg-ag-surface/10 transition-colors">
                               
                               {/* Email & Name */}
                               <td className="px-6 py-4">
-                                <div className="font-bold text-ag-white">{user.email}</div>
+                                <div className="font-bold text-ag-white" title={user.email}>{user.email}</div>
                                 <div className="text-[10px] text-ag-muted mt-0.5 font-medium">
                                   {user.name ? `Name: ${user.name}` : 'No profile name'}
                                   {user.phone && ` | Phone: ${user.phone}`}
@@ -919,17 +968,17 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* DB ID */}
-                              <td className="px-6 py-4 font-mono text-[10px] text-ag-muted">
+                              <td className="px-6 py-4 font-mono text-[10px] text-ag-muted" title={user._id}>
                                 {user._id}
                               </td>
 
                               {/* Registered At */}
-                              <td className="px-6 py-4 text-ag-muted">
+                              <td className="px-6 py-4 text-ag-muted whitespace-nowrap">
                                 {new Date(user.createdAt).toLocaleDateString()}
                               </td>
 
                               {/* Role Badge */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase select-none ${
                                   user.role === 'admin' 
                                     ? 'bg-ag-amber/10 border border-ag-amber/30 text-ag-amber' 
@@ -950,7 +999,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Actions */}
-                              <td className="px-6 py-4 text-right space-x-2">
+                              <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                                 <button
                                   onClick={() => handleToggleRole(user._id, user.role)}
                                   disabled={actionInProgress}
@@ -977,6 +1026,16 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={safeUserPage}
+                  totalItems={filteredUsers.length}
+                  itemsPerPage={userItemsPerPage}
+                  onPageChange={setUserPage}
+                  onItemsPerPageChange={setUserItemsPerPage}
+                  presetSizes={[10, 25, 50, 100, 200, 500]}
+                />
+
               </div>
             )}
 
@@ -991,8 +1050,11 @@ const AdminDashboard = () => {
                     <input
                       type="text"
                       value={itemSearch}
-                      onChange={(e) => setItemSearch(e.target.value)}
-                      placeholder="Search items by product name, URL, or owner email..."
+                      onChange={(e) => {
+                        setItemSearch(e.target.value);
+                        setItemPage(1);
+                      }}
+                      placeholder="Search items by product name, URL, owner email..."
                       className="w-full bg-ag-surface/55 border border-ag-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple focus:ring-1 focus:ring-ag-purple transition-all"
                     />
                   </div>
@@ -1002,8 +1064,11 @@ const AdminDashboard = () => {
                     {['all', 'amazon', 'flipkart', 'myntra', 'ajio', 'meesho'].map((site) => (
                       <button
                         key={site}
-                        onClick={() => setSelectedSite(site)}
-                        className={`px-3 py-1.5 rounded-lg text-[9px] font-bold capitalize transition-all border ${
+                        onClick={() => {
+                          setSelectedSite(site);
+                          setItemPage(1);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[9px] font-bold capitalize transition-all border cursor-pointer ${
                           selectedSite === site
                             ? 'bg-ag-purple text-white border-ag-purple'
                             : 'bg-ag-surface/50 text-ag-muted border-ag-border hover:text-ag-white hover:border-ag-purple'
@@ -1016,9 +1081,9 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Table Container */}
-                <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border">
+                <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border rounded-xl">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse min-w-[1000px]">
                       <thead>
                         <tr className="bg-ag-black/50 border-b border-ag-border text-[10px] font-black text-ag-muted uppercase tracking-wider">
                           <th className="px-6 py-4">Product Info</th>
@@ -1032,14 +1097,14 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ag-border/50 text-xs">
-                        {filteredItems.length === 0 ? (
+                        {paginatedItems.length === 0 ? (
                           <tr>
                             <td colSpan="8" className="px-6 py-12 text-center text-ag-muted font-bold">
-                              No products found in database registry.
+                              No products match search criterion in entire database.
                             </td>
                           </tr>
                         ) : (
-                          filteredItems.map((item) => (
+                          paginatedItems.map((item) => (
                             <tr key={item._id} className="hover:bg-ag-surface/10 transition-colors">
                               
                               {/* Product Image & Title */}
@@ -1065,6 +1130,7 @@ const AdminDashboard = () => {
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-[10px] text-ag-purple hover:underline truncate block max-w-[240px] mt-0.5 font-medium"
+                                      title={item.url}
                                     >
                                       Visit Retailer Link ↗
                                     </a>
@@ -1080,7 +1146,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Site Badge */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <span className="text-[9px] font-black uppercase bg-ag-purple/10 border border-ag-purple/20 text-ag-purple px-2 py-0.5 rounded">
                                   {item.site || 'retailer'}
                                 </span>
@@ -1088,19 +1154,19 @@ const AdminDashboard = () => {
 
                               {/* Owner Info */}
                               <td className="px-6 py-4 text-ag-white">
-                                <span className="font-semibold">{item.ownerEmail}</span>
+                                <span className="font-semibold block truncate max-w-[180px]" title={item.ownerEmail}>{item.ownerEmail}</span>
                                 {item.ownerName && (
                                   <span className="block text-[9px] text-ag-muted mt-0.5 font-medium">({item.ownerName})</span>
                                 )}
                               </td>
 
                               {/* Target Price */}
-                              <td className="px-6 py-4 font-black text-ag-white">
+                              <td className="px-6 py-4 font-black text-ag-white whitespace-nowrap">
                                 ₹{item.targetPrice?.toLocaleString('en-IN') || '0'}
                               </td>
 
                               {/* Current Price */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="font-black text-ag-green">
                                   {item.currentPrice !== null ? `₹${item.currentPrice.toLocaleString('en-IN')}` : 'Scraping Fail'}
                                 </div>
@@ -1112,7 +1178,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Scraper Status */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center space-x-1.5">
                                   <span className={`w-1.5 h-1.5 rounded-full ${item.isAvailable ? 'bg-ag-green' : 'bg-ag-red'}`}></span>
                                   <span className="font-semibold text-ag-white">{item.isAvailable ? 'Active' : 'Offline'}</span>
@@ -1150,6 +1216,16 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={safeItemPage}
+                  totalItems={filteredItems.length}
+                  itemsPerPage={itemItemsPerPage}
+                  onPageChange={setItemPage}
+                  onItemsPerPageChange={setItemItemsPerPage}
+                  presetSizes={[10, 25, 50, 100, 200, 500]}
+                />
+
               </div>
             )}
 
@@ -1163,16 +1239,19 @@ const AdminDashboard = () => {
                   <input
                     type="text"
                     value={compareSearch}
-                    onChange={(e) => setCompareSearch(e.target.value)}
-                    placeholder="Search comparisons by product title or owner email..."
+                    onChange={(e) => {
+                      setCompareSearch(e.target.value);
+                      setComparePage(1);
+                    }}
+                    placeholder="Search comparisons by product title, URL, owner email..."
                     className="w-full bg-ag-surface/55 border border-ag-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-ag-white focus:outline-none focus:border-ag-purple focus:ring-1 focus:ring-ag-purple transition-all"
                   />
                 </div>
 
                 {/* Table Container */}
-                <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border">
+                <div className="glass-card overflow-hidden bg-ag-surface/20 border border-ag-border rounded-xl">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse min-w-[950px]">
                       <thead>
                         <tr className="bg-ag-black/50 border-b border-ag-border text-[10px] font-black text-ag-muted uppercase tracking-wider">
                           <th className="px-6 py-4">Comparison Title</th>
@@ -1183,20 +1262,22 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ag-border/50 text-xs">
-                        {filteredComparisons.length === 0 ? (
+                        {paginatedComparisons.length === 0 ? (
                           <tr>
                             <td colSpan="5" className="px-6 py-12 text-center text-ag-muted font-bold">
-                              No compared product logs found in database.
+                              No compared product logs match search criterion.
                             </td>
                           </tr>
                         ) : (
-                          filteredComparisons.map((comp) => (
+                          paginatedComparisons.map((comp) => (
                             <tr key={comp._id} className="hover:bg-ag-surface/10 transition-colors">
                               
                               {/* Title */}
                               <td className="px-6 py-4 font-bold text-ag-white max-w-xs">
-                                {comp.productName}
-                                <span className="block text-[9px] text-ag-muted font-medium mt-1">
+                                <div className="truncate max-w-[200px]" title={comp.productName}>
+                                  {comp.productName}
+                                </div>
+                                <span className="block text-[9px] text-ag-muted font-medium mt-1 font-mono">
                                   ID: {comp._id}
                                 </span>
                               </td>
@@ -1214,6 +1295,7 @@ const AdminDashboard = () => {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-ag-white hover:text-ag-purple hover:underline"
+                                        title={link.url}
                                       >
                                         {link.url}
                                       </a>
@@ -1226,7 +1308,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Owner */}
-                              <td className="px-6 py-4 text-ag-white">
+                              <td className="px-6 py-4 text-ag-white whitespace-nowrap">
                                 <span className="font-semibold">{comp.ownerEmail}</span>
                                 {comp.ownerName && (
                                   <span className="block text-[9px] text-ag-muted mt-0.5 font-medium">({comp.ownerName})</span>
@@ -1234,7 +1316,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Created At */}
-                              <td className="px-6 py-4 text-ag-muted">
+                              <td className="px-6 py-4 text-ag-muted whitespace-nowrap">
                                 {new Date(comp.createdAt).toLocaleDateString()}
                               </td>
 
@@ -1266,6 +1348,16 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={safeComparePage}
+                  totalItems={filteredComparisons.length}
+                  itemsPerPage={compareItemsPerPage}
+                  onPageChange={setComparePage}
+                  onItemsPerPageChange={setCompareItemsPerPage}
+                  presetSizes={[10, 25, 50, 100, 200, 500]}
+                />
+
               </div>
             )}
 
@@ -1281,7 +1373,10 @@ const AdminDashboard = () => {
                     <input
                       type="text"
                       value={couponSearch}
-                      onChange={(e) => setCouponSearch(e.target.value)}
+                      onChange={(e) => {
+                        setCouponSearch(e.target.value);
+                        setCouponPage(1);
+                      }}
                       placeholder="Search coupons by code or description..."
                       className="w-full bg-ag-surface border border-ag-border rounded-lg pl-9 pr-4 py-2 text-xs text-ag-white focus:outline-none focus:border-ag-purple"
                     />
@@ -1293,8 +1388,11 @@ const AdminDashboard = () => {
                     {/* Store Filter */}
                     <select
                       value={selectedCouponStore}
-                      onChange={(e) => setSelectedCouponStore(e.target.value)}
-                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none"
+                      onChange={(e) => {
+                        setSelectedCouponStore(e.target.value);
+                        setCouponPage(1);
+                      }}
+                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none cursor-pointer"
                     >
                       <option value="all">All Stores</option>
                       <option value="amazon">Amazon</option>
@@ -1307,8 +1405,11 @@ const AdminDashboard = () => {
                     {/* Type Filter */}
                     <select
                       value={selectedCouponType}
-                      onChange={(e) => setSelectedCouponType(e.target.value)}
-                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none"
+                      onChange={(e) => {
+                        setSelectedCouponType(e.target.value);
+                        setCouponPage(1);
+                      }}
+                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none cursor-pointer"
                     >
                       <option value="all">All Types</option>
                       <option value="store">Store-wide</option>
@@ -1321,8 +1422,11 @@ const AdminDashboard = () => {
                     {/* Source Filter */}
                     <select
                       value={selectedCouponSource}
-                      onChange={(e) => setSelectedCouponSource(e.target.value)}
-                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none"
+                      onChange={(e) => {
+                        setSelectedCouponSource(e.target.value);
+                        setCouponPage(1);
+                      }}
+                      className="bg-ag-surface border border-ag-border text-xs rounded-lg px-3 py-2 text-ag-white focus:outline-none cursor-pointer"
                     >
                       <option value="all">All Sources</option>
                       <option value="scraped">Scraped</option>
@@ -1367,9 +1471,9 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Coupons Table */}
-                <div className="glass-card overflow-hidden border border-ag-border">
+                <div className="glass-card overflow-hidden border border-ag-border rounded-xl">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse min-w-[1000px]">
                       <thead>
                         <tr className="bg-ag-black/50 border-b border-ag-border text-ag-muted font-bold text-[10px] uppercase tracking-wider">
                           <th className="px-6 py-4">Coupon Info</th>
@@ -1383,30 +1487,14 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ag-border/50 text-xs text-ag-muted">
-                        {couponsList.filter(c => {
-                          const queryMatch = !couponSearch.trim() || 
-                            (c.code || '').toLowerCase().includes(couponSearch.toLowerCase()) || 
-                            c.description.toLowerCase().includes(couponSearch.toLowerCase());
-                          const storeMatch = selectedCouponStore === 'all' || c.store === selectedCouponStore;
-                          const typeMatch = selectedCouponType === 'all' || c.couponType === selectedCouponType;
-                          const sourceMatch = selectedCouponSource === 'all' || c.source === selectedCouponSource;
-                          return queryMatch && storeMatch && typeMatch && sourceMatch;
-                        }).length === 0 ? (
+                        {paginatedCoupons.length === 0 ? (
                           <tr>
                             <td colSpan="8" className="px-6 py-12 text-center text-ag-muted font-semibold">
-                              No coupons or offers found in database.
+                              No coupons match search criterion in entire database.
                             </td>
                           </tr>
                         ) : (
-                          couponsList.filter(c => {
-                            const queryMatch = !couponSearch.trim() || 
-                              (c.code || '').toLowerCase().includes(couponSearch.toLowerCase()) || 
-                              c.description.toLowerCase().includes(couponSearch.toLowerCase());
-                            const storeMatch = selectedCouponStore === 'all' || c.store === selectedCouponStore;
-                            const typeMatch = selectedCouponType === 'all' || c.couponType === selectedCouponType;
-                            const sourceMatch = selectedCouponSource === 'all' || c.source === selectedCouponSource;
-                            return queryMatch && storeMatch && typeMatch && sourceMatch;
-                          }).map(coupon => (
+                          paginatedCoupons.map(coupon => (
                             <tr key={coupon._id} className="hover:bg-ag-surface/10 transition-colors">
                               
                               {/* Coupon Info */}
@@ -1419,7 +1507,7 @@ const AdminDashboard = () => {
                                   ) : (
                                     <span className="text-[10px] text-ag-muted italic font-medium">Auto-applied offer / No code</span>
                                   )}
-                                  <p className="text-ag-white font-semibold leading-relaxed text-[11px] mt-1">
+                                  <p className="text-ag-white font-semibold leading-relaxed text-[11px] mt-1" title={coupon.description}>
                                     {coupon.description}
                                   </p>
                                   {coupon.discountValue && (
@@ -1431,7 +1519,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Store */}
-                              <td className="px-6 py-4 capitalize text-ag-white font-bold">
+                              <td className="px-6 py-4 capitalize text-ag-white font-bold whitespace-nowrap">
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] border ${
                                   coupon.store === 'amazon' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
                                   coupon.store === 'flipkart' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
@@ -1444,14 +1532,14 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Type */}
-                              <td className="px-6 py-4 capitalize font-semibold text-ag-muted">
-                                {coupon.couponType.replace('_', ' ')}
+                              <td className="px-6 py-4 capitalize font-semibold text-ag-muted whitespace-nowrap">
+                                {coupon.couponType ? coupon.couponType.replace('_', ' ') : 'store'}
                                 {coupon.brand && <span className="block text-[10px] text-ag-purple mt-0.5 font-bold">Brand: {coupon.brand}</span>}
                                 {coupon.category && <span className="block text-[10px] text-ag-purple mt-0.5 font-bold">Cat: {coupon.category}</span>}
                               </td>
 
                               {/* Source */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black tracking-wide uppercase ${
                                   coupon.source === 'scraped' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                   coupon.source === 'affiliate' ? 'bg-purple-500/10 text-ag-purple border border-ag-purple/20' :
@@ -1462,7 +1550,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Status */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <button
                                   onClick={() => handleToggleActive(coupon)}
                                   className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
@@ -1476,7 +1564,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Verified */}
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <button
                                   onClick={() => handleToggleVerification(coupon)}
                                   className={`px-2.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors flex items-center gap-1 ${
@@ -1490,7 +1578,7 @@ const AdminDashboard = () => {
                               </td>
 
                               {/* Expiry */}
-                              <td className="px-6 py-4 text-ag-muted font-medium">
+                              <td className="px-6 py-4 text-ag-muted font-medium whitespace-nowrap">
                                 {coupon.expiryDate ? new Date(coupon.expiryDate).toLocaleDateString() : 'Never'}
                               </td>
 
@@ -1500,12 +1588,12 @@ const AdminDashboard = () => {
                                   onClick={() => {
                                     setEditingCoupon(coupon);
                                     setCouponForm({
-                                      code: coupon.code,
-                                      description: coupon.description,
+                                      code: coupon.code || '',
+                                      description: coupon.description || '',
                                       discountType: coupon.discountType || 'other',
                                       discountValue: coupon.discountValue || '',
-                                      couponType: coupon.couponType,
-                                      store: coupon.store,
+                                      couponType: coupon.couponType || 'store',
+                                      store: coupon.store || 'amazon',
                                       category: coupon.category || '',
                                       brand: coupon.brand || '',
                                       productUrl: coupon.productUrl || '',
@@ -1534,6 +1622,16 @@ const AdminDashboard = () => {
                     </table>
                   </div>
                 </div>
+
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={safeCouponPage}
+                  totalItems={filteredCoupons.length}
+                  itemsPerPage={couponItemsPerPage}
+                  onPageChange={setCouponPage}
+                  onItemsPerPageChange={setCouponItemsPerPage}
+                  presetSizes={[10, 25, 50, 100, 200, 500]}
+                />
 
               </div>
             )}
