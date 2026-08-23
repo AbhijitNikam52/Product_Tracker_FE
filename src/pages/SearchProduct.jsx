@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -39,10 +40,42 @@ const SEARCH_MESSAGES = [
 ];
 
 const SearchProduct = () => {
-  const { openAddModal, cart, addToCart, savedProducts, saveProduct } = useStore();
+  const { openAddModal, cart, addToCart, savedProducts, saveProduct, setSavedProducts } = useStore();
   const [query, setQuery] = useState('');
+
+  // Fetch initial saved products if not already loaded
+  useEffect(() => {
+    const fetchSaved = async () => {
+      try {
+        const res = await client.get('/api/saved-products');
+        setSavedProducts(res.data);
+      } catch (err) {
+        console.error('Failed to pre-fetch saved products:', err);
+      }
+    };
+    fetchSaved();
+  }, [setSavedProducts]);
+
+  const handleSaveProduct = async (product) => {
+    try {
+      const res = await client.post('/api/saved-products', {
+        title: product.title,
+        imageUrl: product.imageUrl,
+        price: product.price,
+        rating: product.rating,
+        productUrl: product.productUrl,
+        site: product.site
+      });
+      saveProduct(res.data);
+      toast.success(`Product "${product.title || 'item'}" saved to catalog!`);
+    } catch (err) {
+      console.error('Error saving product to shared catalog:', err);
+      toast.error(err.response?.data?.error || 'Failed to save product.');
+    }
+  };
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState(null);
+  const [copiedCodeId, setCopiedCodeId] = useState(null);
   const [error, setError] = useState(null);
   
   // Rotating status message
@@ -328,6 +361,38 @@ const SearchProduct = () => {
                         </span>
                       </div>
 
+                      {/* Coupons Section */}
+                      {res.coupons && res.coupons.length > 0 && (
+                        <div className="pt-2 border-t border-ag-border/50">
+                          <span className="text-[9px] font-bold text-ag-muted uppercase tracking-wider block mb-1">
+                            Available Offers ({res.coupons.length})
+                          </span>
+                          <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                            {res.coupons.map((coupon, idx) => (
+                              <div key={idx} className="bg-ag-black/50 p-1.5 rounded border border-ag-border/50 text-[10px]">
+                                <p className="text-ag-white leading-normal font-medium">{coupon.description}</p>
+                                {coupon.code && (
+                                  <div className="flex items-center justify-between mt-1 bg-ag-black px-1.5 py-0.5 rounded border border-ag-border/30">
+                                    <span className="font-bold text-ag-purple font-mono uppercase">{coupon.code}</span>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(coupon.code);
+                                        setCopiedCodeId(coupon.code + '_' + idx);
+                                        toast.success(`Coupon code "${coupon.code}" copied!`);
+                                        setTimeout(() => setCopiedCodeId(null), 2000);
+                                      }}
+                                      className="text-[9px] text-ag-green font-bold hover:underline cursor-pointer focus:outline-none"
+                                    >
+                                      {copiedCodeId === (coupon.code + '_' + idx) ? 'Copied!' : 'Copy'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Buttons */}
                       <div className="space-y-2 pt-2 border-t border-ag-border/50">
                         <div className="flex space-x-2">
@@ -364,9 +429,9 @@ const SearchProduct = () => {
                           </button>
 
                           <button
-                            onClick={() => saveProduct(res)}
+                            onClick={() => handleSaveProduct(res)}
                             disabled={isSaved}
-                            className={`w-1/2 py-2 px-3 text-[10px] font-black rounded-xl transition-all flex items-center justify-center ${
+                            className={`w-1/2 py-2 px-3 text-[10px] font-black rounded-xl transition-all flex items-center justify-center cursor-pointer ${
                               isSaved
                                 ? 'bg-ag-green/20 text-ag-green border border-ag-green/20 cursor-not-allowed'
                                 : 'bg-ag-surface border border-ag-border hover:border-ag-green text-ag-muted hover:text-ag-white'

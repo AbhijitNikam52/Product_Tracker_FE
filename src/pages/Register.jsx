@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useStore from '../store/useStore';
 import client from '../api/client';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { toast } from 'react-toastify';
 
 const Register = () => {
   const { login } = useStore();
@@ -19,17 +20,23 @@ const Register = () => {
     setError(null);
 
     if (!email || !password || !confirmPassword) {
-      setError('Please fill in all fields.');
+      const errMsg = 'Please fill in all fields.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      const errMsg = 'Password must be at least 6 characters long.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      const errMsg = 'Passwords do not match.';
+      setError(errMsg);
+      toast.error(errMsg);
       return;
     }
 
@@ -42,10 +49,13 @@ const Register = () => {
 
       // Log in user on successful sign up
       login(response.data);
+      toast.success('Registration successful! Welcome to PriceDekho.');
       navigate('/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.error || 'Registration failed. Please check details.');
+      const errMsg = err.response?.data?.error || 'Registration failed. Please check details.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }
@@ -61,9 +71,9 @@ const Register = () => {
         {/* Logo and Branding Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center space-x-2 select-none mb-3">
-            <span className="text-ag-purple text-3xl font-black">⬇</span>
+            <span className="text-ag-purple text-3xl font-black">🏷️</span>
             <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-ag-purple to-ag-violet bg-clip-text text-transparent">
-              Antigravity
+              PriceDekho
             </span>
           </div>
           <p className="text-xs text-ag-muted font-semibold uppercase tracking-wider">

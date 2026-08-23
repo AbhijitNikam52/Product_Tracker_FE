@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -66,9 +67,10 @@ const Compare = () => {
         try {
           await client.delete(`/api/comparison/${product._id}`);
           removeComparisonProduct(product._id);
+          toast.success('Successfully stopped tracking and comparing prices!');
         } catch (err) {
           console.error('Error deleting comparison product:', err);
-          showAlert('Delete Failed', err.response?.data?.error || 'Failed to delete comparison product.');
+          toast.error(err.response?.data?.error || 'Failed to delete comparison product.');
         }
       }
     );

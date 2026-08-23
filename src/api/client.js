@@ -15,7 +15,7 @@ const client = axios.create({
 client.interceptors.request.use(
   (config) => {
     try {
-      const stored = localStorage.getItem('antigravity_user');
+      const stored = localStorage.getItem('pricedekho_user');
       if (stored) {
         const { token } = JSON.parse(stored);
         if (token) {
@@ -38,7 +38,7 @@ client.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       console.warn('Session expired or unauthorized. Logging out...');
-      localStorage.removeItem('antigravity_user');
+      localStorage.removeItem('pricedekho_user');
       // Redirect to login page if window is defined (browser environment)
       if (typeof window !== 'undefined') {
         window.location.href = '/login';

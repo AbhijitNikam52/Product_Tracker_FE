@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import useStore from '../store/useStore';
 import client from '../api/client';
+import { toast } from 'react-toastify';
 
 const ProductCard = ({ item }) => {
   const { openGraph, updateItem, removeItem, showConfirm, showAlert } = useStore();
@@ -11,6 +12,9 @@ const ProductCard = ({ item }) => {
   const [isEditingTarget, setIsEditingTarget] = useState(false);
   const [tempTargetPrice, setTempTargetPrice] = useState(item.targetPrice.toString());
   const [isSavingTarget, setIsSavingTarget] = useState(false);
+
+  const [showCoupons, setShowCoupons] = useState(false);
+  const [copiedCodeId, setCopiedCodeId] = useState(null);
 
   const symbol = item.currency === 'USD' ? '$' : '₹';
 
@@ -78,9 +82,10 @@ const ProductCard = ({ item }) => {
         try {
           await client.delete(`/api/items/${item._id}`);
           removeItem(item._id);
+          toast.success('Successfully stopped tracking product!');
         } catch (err) {
           console.error('Error deleting item:', err);
-          showAlert('Delete Failed', err.response?.data?.error || 'Failed to delete item.');
+          toast.error(err.response?.data?.error || 'Failed to delete item.');
         }
       }
     );
@@ -89,7 +94,7 @@ const ProductCard = ({ item }) => {
   const handleSaveTarget = async () => {
     const val = parseFloat(tempTargetPrice);
     if (isNaN(val) || val <= 0) {
-      showAlert('Invalid Price', 'Please enter a valid target price greater than 0.');
+      toast.error('Please enter a valid target price greater than 0.');
       return;
     }
     setIsSavingTarget(true);
@@ -98,10 +103,11 @@ const ProductCard = ({ item }) => {
       if (response.data) {
         updateItem(item._id, response.data);
         setIsEditingTarget(false);
+        toast.success('Target price updated successfully!');
       }
     } catch (err) {
       console.error('Error updating target price:', err);
-      showAlert('Update Failed', err.response?.data?.error || 'Failed to update target price.');
+      toast.error(err.response?.data?.error || 'Failed to update target price.');
     } finally {
       setIsSavingTarget(false);
     }
@@ -150,7 +156,7 @@ const ProductCard = ({ item }) => {
         ) : (
           // Fallback image gradient
           <div className="w-full h-full bg-gradient-to-br from-ag-purple/10 to-ag-violet/5 flex flex-col items-center justify-center">
-            <span className="text-ag-purple text-4xl mb-1">⬇</span>
+            <span className="text-ag-purple text-4xl mb-1">🏷️</span>
             <span className="text-[10px] text-ag-muted font-semibold tracking-widest uppercase">
               No Image Loaded
             </span>
@@ -270,6 +276,68 @@ const ProductCard = ({ item }) => {
         {refreshError && (
           <div className="mt-2 text-center text-[10px] text-ag-red font-semibold bg-ag-red/10 py-1 px-2 rounded-lg animate-pulse">
             {refreshError}
+          </div>
+        )}
+
+        {/* Collapsible Coupons Section */}
+        {item.coupons && item.coupons.length > 0 && (
+          <div className="mt-4 border-t border-ag-border/50 pt-3">
+            <button
+              onClick={() => setShowCoupons(!showCoupons)}
+              className="w-full flex items-center justify-between text-xs font-bold text-ag-muted hover:text-ag-white transition-colors focus:outline-none"
+            >
+              <span className="flex items-center gap-1.5">
+                🏷️ {item.coupons.length} Offers Available
+              </span>
+              <span>{showCoupons ? '▲' : '▼'}</span>
+            </button>
+
+            {showCoupons && (
+              <div className="mt-3 space-y-2 max-h-40 overflow-y-auto pr-1">
+                {item.coupons.map((coupon) => (
+                  <div 
+                    key={coupon._id} 
+                    className="p-2 rounded-lg bg-ag-black/40 border border-ag-border/60 hover:border-ag-purple/40 transition-colors flex flex-col gap-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                        coupon.couponType === 'bank_offer' 
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
+                          : 'bg-ag-purple/10 text-ag-purple border border-ag-purple/20'
+                      }`}>
+                        {coupon.couponType.replace('_', ' ')}
+                      </span>
+                      <span className="text-[8px] font-bold text-ag-green">
+                        {coupon.isVerified ? '✓ Verified' : ''}
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] font-medium leading-normal text-ag-white">
+                      {coupon.description}
+                    </p>
+
+                    {coupon.code && (
+                      <div className="flex items-center justify-between gap-2 mt-1 bg-ag-black/60 rounded px-2 py-0.5 border border-ag-border/30">
+                        <span className="text-[10px] font-extrabold uppercase text-ag-purple tracking-wider font-mono">
+                          {coupon.code}
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(coupon.code);
+                            setCopiedCodeId(coupon._id);
+                            toast.success(`Coupon code "${coupon.code}" copied!`);
+                            setTimeout(() => setCopiedCodeId(null), 2000);
+                          }}
+                          className="text-[9px] font-black text-ag-green hover:underline cursor-pointer focus:outline-none"
+                        >
+                          {copiedCodeId === coupon._id ? 'Copied! 🎉' : 'Copy Code'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

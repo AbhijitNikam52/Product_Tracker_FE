@@ -15,9 +15,9 @@ const Landing = () => {
       {/* Top Navbar */}
       <header className="px-6 py-5 md:px-12 max-w-7xl mx-auto w-full flex items-center justify-between z-10">
         <div className="flex items-center space-x-2">
-          <span className="text-ag-purple text-2xl font-black">⬇</span>
+          <span className="text-ag-purple text-2xl font-black">🏷️</span>
           <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-ag-purple to-ag-violet bg-clip-text text-transparent">
-            Antigravity
+            PriceDekho
           </span>
         </div>
         
@@ -62,7 +62,7 @@ const Landing = () => {
 
           {/* Subheadline */}
           <p className="text-base md:text-lg text-ag-muted font-medium leading-relaxed max-w-2xl mx-auto mb-10">
-            Antigravity tracks prices across Amazon, Flipkart, Myntra, Ajio, Meesho and more. 
+            PriceDekho tracks prices across Amazon, Flipkart, Myntra, Ajio, Meesho and more. 
             Get alerted directly in your inbox the exact moment prices drop.
           </p>
 
@@ -140,7 +140,7 @@ const Landing = () => {
 
       {/* Landing Footer */}
       <footer className="w-full text-center py-8 border-t border-ag-border/50 text-xs text-ag-muted z-10 bg-ag-black">
-        © 2026 Antigravity · Built for smart shoppers
+        © 2026 PriceDekho · Built for smart shoppers
       </footer>
 
     </div>
